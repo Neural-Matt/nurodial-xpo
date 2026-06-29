@@ -110,6 +110,7 @@ function RoleSwitcher() {
       <ListItemButton
         onClick={(event) => setAnchorEl(event.currentTarget)}
         sx={{
+          flexGrow: 0,
           mx: 1.5,
           mb: 1,
           borderRadius: 1.5,
