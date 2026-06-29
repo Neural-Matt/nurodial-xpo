@@ -3,7 +3,6 @@ import { Box, Grid, Typography } from '@mui/material';
 import PhoneInTalkOutlined from '@mui/icons-material/PhoneInTalkOutlined';
 import PeopleOutlineOutlined from '@mui/icons-material/PeopleOutlineOutlined';
 import AccessTimeOutlined from '@mui/icons-material/AccessTimeOutlined';
-import ConfirmationNumberOutlined from '@mui/icons-material/ConfirmationNumberOutlined';
 import TaskAltOutlined from '@mui/icons-material/TaskAltOutlined';
 import StarOutlined from '@mui/icons-material/StarOutlined';
 import QueueOutlined from '@mui/icons-material/QueueOutlined';
@@ -11,9 +10,6 @@ import TrendingUpOutlined from '@mui/icons-material/TrendingUpOutlined';
 import AssignmentTurnedInOutlined from '@mui/icons-material/AssignmentTurnedInOutlined';
 import ReportProblemOutlined from '@mui/icons-material/ReportProblemOutlined';
 import TuneOutlined from '@mui/icons-material/TuneOutlined';
-import AssessmentOutlined from '@mui/icons-material/AssessmentOutlined';
-import FileDownloadOutlined from '@mui/icons-material/FileDownloadOutlined';
-import StorageOutlined from '@mui/icons-material/StorageOutlined';
 import CampaignOutlined from '@mui/icons-material/CampaignOutlined';
 import ListAltOutlined from '@mui/icons-material/ListAltOutlined';
 import { KpiCard, type KpiVariant } from '../components/common/KpiCard';
@@ -32,7 +28,7 @@ const ROLE_KPIS: Record<Role, DashboardKpi[]> = {
     { label: 'Active Calls', value: 12, icon: PhoneInTalkOutlined, variant: 'info' },
     { label: 'Agents Online', value: 34, icon: PeopleOutlineOutlined, variant: 'success' },
     { label: 'Avg. Wait Time', value: '00:01:23', icon: AccessTimeOutlined, variant: 'warning' },
-    { label: 'New Tickets', value: 5, icon: ConfirmationNumberOutlined, variant: 'primary' },
+    { label: 'Active Campaigns', value: 5, icon: CampaignOutlined, variant: 'primary' },
   ],
   Agent: [
     { label: 'My Calls Today', value: 18, icon: PhoneInTalkOutlined, variant: 'info' },
@@ -51,12 +47,6 @@ const ROLE_KPIS: Record<Role, DashboardKpi[]> = {
     { label: 'Avg. QA Score', value: '87%', icon: TrendingUpOutlined, variant: 'success' },
     { label: 'Disputes Open', value: 3, icon: ReportProblemOutlined, variant: 'error' },
     { label: 'Calibration Sessions', value: 2, icon: TuneOutlined, variant: 'info' },
-  ],
-  MIS: [
-    { label: 'Reports Generated', value: 46, icon: AssessmentOutlined, variant: 'info' },
-    { label: 'Active Users', value: 98, icon: PeopleOutlineOutlined, variant: 'success' },
-    { label: 'Data Exports', value: 9, icon: FileDownloadOutlined, variant: 'primary' },
-    { label: 'System Uptime', value: '99.98%', icon: StorageOutlined, variant: 'success' },
   ],
   CampaignManager: [
     { label: 'Active Campaigns', value: 7, icon: CampaignOutlined, variant: 'primary' },

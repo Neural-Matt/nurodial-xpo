@@ -6,7 +6,6 @@ export const ALL_ROLES: Role[] = [
   'Agent',
   'Supervisor',
   'QualityAssurance',
-  'MIS',
   'CampaignManager',
 ];
 
@@ -15,7 +14,6 @@ export const ROLE_DISPLAY_NAMES: Record<Role, string> = {
   Agent: 'Agent User',
   Supervisor: 'Supervisor User',
   QualityAssurance: 'QA User',
-  MIS: 'MIS User',
   CampaignManager: 'Campaign Manager',
 };
 
@@ -25,7 +23,6 @@ export const ROLE_LABELS: Record<Role, string> = {
   Agent: 'Agent',
   Supervisor: 'Supervisor',
   QualityAssurance: 'Quality Assurance',
-  MIS: 'MIS',
   CampaignManager: 'Campaign Manager',
 };
 

@@ -4,12 +4,15 @@ import { allNavLeaves } from './navConfig';
 import { ComingSoonPage } from '../components/common/ComingSoonPage';
 import { Dashboard } from '../pages/Dashboard';
 import { UserManagement } from '../pages/admin/UserManagement';
-import { BillingSubscription } from '../pages/admin/BillingSubscription';
+import { Campaigns } from '../pages/admin/Campaigns';
+import { LeadLists } from '../pages/admin/LeadLists';
+import { Dispositions } from '../pages/admin/Dispositions';
 import { AutomationWorkflow } from '../pages/admin/AutomationWorkflow';
 import { AnalyticsDashboard } from '../pages/admin/AnalyticsDashboard';
 import { CallEvaluation } from '../pages/qa/CallEvaluation';
 import { ActiveInteraction } from '../pages/agent/ActiveInteraction';
 import { LiveMonitoring } from '../pages/supervisor/LiveMonitoring';
+import { CallQueues } from '../pages/supervisor/CallQueues';
 import { IntegrationSettings } from '../pages/IntegrationSettings';
 
 // Every built page must be registered here under the exact path it's wired to
@@ -17,13 +20,15 @@ import { IntegrationSettings } from '../pages/IntegrationSettings';
 const builtPages: Record<string, ComponentType> = {
   '/dashboard': Dashboard,
   '/admin/users': UserManagement,
-  '/admin/billing': BillingSubscription,
+  '/campaigns/list': Campaigns,
+  '/campaigns/leads': LeadLists,
+  '/campaigns/dispositions': Dispositions,
   '/admin/automation': AutomationWorkflow,
   '/admin/analytics': AnalyticsDashboard,
-  '/mis/analytics': AnalyticsDashboard,
   '/qa/evaluation': CallEvaluation,
   '/agent/interaction': ActiveInteraction,
   '/supervisor/live': LiveMonitoring,
+  '/supervisor/call-queues': CallQueues,
   '/settings/integration': IntegrationSettings,
 };
 

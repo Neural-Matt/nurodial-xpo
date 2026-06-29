@@ -19,7 +19,7 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { KpiCard } from '../../components/common/KpiCard';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { DetailDrawer } from '../../components/common/DetailDrawer';
-import { users, userKpis, ROLE_TONE, defaultPermissions, activityLog } from '../../services/mock/users';
+import { users, userKpis, ROLE_TONE, ROLE_LABELS, defaultPermissions, activityLog } from '../../services/mock/users';
 import type { AppUser, PermissionItem } from '../../types/domain';
 
 export function UserManagement() {
@@ -124,7 +124,7 @@ export function UserManagement() {
                   </Box>
                 </TableCell>
                 <TableCell>{user.email}</TableCell>
-                <TableCell><StatusBadge label={user.role} tone={ROLE_TONE[user.role]} /></TableCell>
+                <TableCell><StatusBadge label={ROLE_LABELS[user.role] ?? user.role} tone={ROLE_TONE[user.role]} /></TableCell>
                 <TableCell>{user.team}</TableCell>
                 <TableCell><StatusBadge label={user.status} /></TableCell>
                 <TableCell>{user.lastLogin}</TableCell>
@@ -169,7 +169,7 @@ export function UserManagement() {
                 <Typography variant="h6">{selectedUser.name}</Typography>
                 <StatusBadge label={selectedUser.status} />
               </Stack>
-              <Typography variant="body2" color="text.secondary">{selectedUser.role} • {selectedUser.team}</Typography>
+              <Typography variant="body2" color="text.secondary">{ROLE_LABELS[selectedUser.role] ?? selectedUser.role} • {selectedUser.team}</Typography>
               <Typography variant="body2" color="text.secondary">{selectedUser.email}</Typography>
             </Box>
           }
@@ -180,7 +180,7 @@ export function UserManagement() {
                 <Stack spacing={1.5}>
                   {([
                     ['Email', selectedUser.email],
-                    ['Role', selectedUser.role],
+                    ['Role', ROLE_LABELS[selectedUser.role] ?? selectedUser.role],
                     ['Team', selectedUser.team],
                     ['Status', selectedUser.status],
                     ['Last Login', selectedUser.lastLogin],

@@ -17,8 +17,8 @@ import { KpiCard } from '../../components/common/KpiCard';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { ActivityHeatmap } from '../../components/common/ActivityHeatmap';
 import {
-  analyticsKpis, trendDates, activityTrends, heatmapDays, heatmapHours, heatmapData,
-  topTeams, userPerformance, userPerformanceTotal,
+  analyticsKpis, trendDates, callVolumeTrends, heatmapDays, heatmapHours, heatmapData,
+  topCampaigns, agentPerformance, agentPerformanceTotal,
 } from '../../services/mock/analytics';
 import { colors } from '../../theme/palette';
 
@@ -37,7 +37,7 @@ export function AnalyticsDashboard() {
     <Box>
       <PageHeader
         title="Analytics Dashboard"
-        subtitle="Comprehensive insights into your business performance and user activity."
+        subtitle="Call volume, contact rates, and agent performance across all campaigns."
         actions={
           <>
             <Button variant="outlined" startIcon={<CalendarMonthOutlined />} onClick={(event) => setRangeAnchor(event.currentTarget)}>
@@ -72,16 +72,15 @@ export function AnalyticsDashboard() {
           <Card sx={{ height: '100%' }}>
             <CardContent>
               <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 1 }}>
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>User Activity Trends</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>Call Volume Trends</Typography>
                 <Select size="small" defaultValue="daily"><MenuItem value="daily">Daily</MenuItem></Select>
               </Stack>
               <LineChart
                 height={300}
                 series={[
-                  { data: activityTrends.logins, label: 'Logins', color: colors.primary, showMark: false },
-                  { data: activityTrends.activeUsers, label: 'Active Users', color: colors.info, showMark: false },
-                  { data: activityTrends.newUsers, label: 'New Users', color: colors.warning, showMark: false },
-                  { data: activityTrends.activities, label: 'Activities', color: colors.success, showMark: false },
+                  { data: callVolumeTrends.totalCalls, label: 'Total Calls', color: colors.primary, showMark: false },
+                  { data: callVolumeTrends.answeredCalls, label: 'Answered Calls', color: colors.info, showMark: false },
+                  { data: callVolumeTrends.abandonedCalls, label: 'Abandoned Calls', color: colors.warning, showMark: false },
                 ]}
                 xAxis={[{ data: trendDates, scaleType: 'point' }]}
                 grid={{ horizontal: true }}
@@ -94,7 +93,7 @@ export function AnalyticsDashboard() {
           <Card sx={{ height: '100%' }}>
             <CardContent>
               <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>User Activity Heatmap</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>Call Volume Heatmap</Typography>
                 <Select size="small" defaultValue="30"><MenuItem value="30">Last 30 Days</MenuItem></Select>
               </Stack>
               <ActivityHeatmap days={heatmapDays} hours={heatmapHours} data={heatmapData} />
@@ -108,23 +107,23 @@ export function AnalyticsDashboard() {
           <Card sx={{ height: '100%' }}>
             <CardContent>
               <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>Top Performing Teams</Typography>
-                <Select size="small" defaultValue="activities"><MenuItem value="activities">By Activities</MenuItem></Select>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>Top Performing Campaigns</Typography>
+                <Select size="small" defaultValue="calls"><MenuItem value="calls">By Calls Handled</MenuItem></Select>
               </Stack>
               <Stack divider={<Divider />} spacing={1.5}>
-                {topTeams.map((team) => (
-                  <Stack key={team.rank} direction="row" spacing={1.5} sx={{ alignItems: 'center', py: 0.5 }}>
+                {topCampaigns.map((campaign) => (
+                  <Stack key={campaign.rank} direction="row" spacing={1.5} sx={{ alignItems: 'center', py: 0.5 }}>
                     <Box sx={{ width: 24, height: 24, borderRadius: '50%', bgcolor: 'rgba(224,32,58,0.1)', color: 'primary.main', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 700, fontSize: 12, flexShrink: 0 }}>
-                      {team.rank}
+                      {campaign.rank}
                     </Box>
-                    <Typography variant="body2" sx={{ fontWeight: 600, flex: 1 }}>{team.team}</Typography>
-                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{team.activities.toLocaleString()}</Typography>
-                    <Typography variant="caption" color="success.main">{team.delta}</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 600, flex: 1 }}>{campaign.campaign}</Typography>
+                    <Typography variant="body2" sx={{ fontWeight: 700 }}>{campaign.callsHandled.toLocaleString()}</Typography>
+                    <Typography variant="caption" color="success.main">{campaign.delta}</Typography>
                   </Stack>
                 ))}
               </Stack>
               <Box sx={{ textAlign: 'center', mt: 2 }}>
-                <Button size="small">View All Teams</Button>
+                <Button size="small">View All Campaigns</Button>
               </Box>
             </CardContent>
           </Card>
@@ -133,7 +132,7 @@ export function AnalyticsDashboard() {
           <Card>
             <CardContent>
               <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mb: 2, flexWrap: 'wrap', gap: 1 }}>
-                <Typography variant="h6" sx={{ fontWeight: 700 }}>User Performance Summary</Typography>
+                <Typography variant="h6" sx={{ fontWeight: 700 }}>Agent Performance Summary</Typography>
                 <Stack direction="row" spacing={1.5}>
                   <Select size="small" defaultValue="all"><MenuItem value="all">All Teams</MenuItem></Select>
                   <Button size="small" variant="outlined" startIcon={<ViewColumnOutlined fontSize="small" />}>Columns</Button>
@@ -144,32 +143,32 @@ export function AnalyticsDashboard() {
                 <Table size="small" sx={{ minWidth: 760, '& td, & th': { whiteSpace: 'nowrap' } }}>
                   <TableHead>
                     <TableRow>
-                      <TableCell>User</TableCell>
+                      <TableCell>Agent</TableCell>
                       <TableCell>Team</TableCell>
                       <TableCell>Role</TableCell>
-                      <TableCell>Logins</TableCell>
+                      <TableCell>Calls Handled</TableCell>
                       <TableCell>Active Days</TableCell>
-                      <TableCell>Activities</TableCell>
-                      <TableCell>Deals Created</TableCell>
+                      <TableCell>Talk Time</TableCell>
+                      <TableCell>Conversions</TableCell>
                       <TableCell>Last Login</TableCell>
                       <TableCell>Status</TableCell>
                     </TableRow>
                   </TableHead>
                   <TableBody>
-                    {userPerformance.map((row) => (
-                      <TableRow key={row.user} hover>
+                    {agentPerformance.map((row) => (
+                      <TableRow key={row.agent} hover>
                         <TableCell>
                           <Stack direction="row" spacing={1} sx={{ alignItems: 'center' }}>
-                            <Avatar sx={{ width: 28, height: 28, fontSize: 12, bgcolor: 'primary.main' }}>{row.user[0]}</Avatar>
-                            {row.user}
+                            <Avatar sx={{ width: 28, height: 28, fontSize: 12, bgcolor: 'primary.main' }}>{row.agent[0]}</Avatar>
+                            {row.agent}
                           </Stack>
                         </TableCell>
                         <TableCell>{row.team}</TableCell>
                         <TableCell>{row.role}</TableCell>
-                        <TableCell>{row.logins}</TableCell>
+                        <TableCell>{row.callsHandled}</TableCell>
                         <TableCell>{row.activeDays}</TableCell>
-                        <TableCell>{row.activities}</TableCell>
-                        <TableCell>{row.dealsCreated}</TableCell>
+                        <TableCell>{row.talkTime}</TableCell>
+                        <TableCell>{row.conversions}</TableCell>
                         <TableCell>{row.lastLogin}</TableCell>
                         <TableCell><StatusBadge label={row.status} /></TableCell>
                       </TableRow>
@@ -179,7 +178,7 @@ export function AnalyticsDashboard() {
               </Box>
               <Stack direction="row" sx={{ justifyContent: 'space-between', alignItems: 'center', mt: 2 }}>
                 <Typography variant="body2" color="text.secondary">
-                  Showing 1 to {userPerformance.length} of {userPerformanceTotal} users
+                  Showing 1 to {agentPerformance.length} of {agentPerformanceTotal} agents
                 </Typography>
                 <Stack direction="row" spacing={0.5}>
                   {[1, 2, 3].map((p) => (

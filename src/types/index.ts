@@ -11,7 +11,6 @@ export type Role =
   | 'Agent'
   | 'Supervisor'
   | 'QualityAssurance'
-  | 'MIS'
   | 'CampaignManager';
 
 export interface Breadcrumb {
