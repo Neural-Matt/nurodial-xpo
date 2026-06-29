@@ -22,8 +22,5 @@ export interface Breadcrumb {
 // Example mock data shape for a table row
 export interface TableRow {
   id: string | number;
-  [key: string]: any;
+  [key: string]: unknown;
 }
-
-// Ensure named exports are available for ES module imports
-export { NavItem, Role, Breadcrumb, TableRow };

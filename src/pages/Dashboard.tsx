@@ -1,34 +1,90 @@
-import React from 'react';
-import { Grid, Card, CardContent, Typography } from '@mui/material';
+import type { ElementType } from 'react';
+import { Box, Grid, Typography } from '@mui/material';
+import PhoneInTalkOutlined from '@mui/icons-material/PhoneInTalkOutlined';
+import PeopleOutlineOutlined from '@mui/icons-material/PeopleOutlineOutlined';
+import AccessTimeOutlined from '@mui/icons-material/AccessTimeOutlined';
+import ConfirmationNumberOutlined from '@mui/icons-material/ConfirmationNumberOutlined';
+import TaskAltOutlined from '@mui/icons-material/TaskAltOutlined';
+import StarOutlined from '@mui/icons-material/StarOutlined';
+import QueueOutlined from '@mui/icons-material/QueueOutlined';
+import TrendingUpOutlined from '@mui/icons-material/TrendingUpOutlined';
+import AssignmentTurnedInOutlined from '@mui/icons-material/AssignmentTurnedInOutlined';
+import ReportProblemOutlined from '@mui/icons-material/ReportProblemOutlined';
+import TuneOutlined from '@mui/icons-material/TuneOutlined';
+import AssessmentOutlined from '@mui/icons-material/AssessmentOutlined';
+import FileDownloadOutlined from '@mui/icons-material/FileDownloadOutlined';
+import StorageOutlined from '@mui/icons-material/StorageOutlined';
+import CampaignOutlined from '@mui/icons-material/CampaignOutlined';
+import ListAltOutlined from '@mui/icons-material/ListAltOutlined';
+import { KpiCard, type KpiVariant } from '../components/common/KpiCard';
+import { useRole } from '../context/useRole';
+import type { Role } from '../types';
 
-// Simple KPI cards to demonstrate the design language
-const kpis = [
-  { label: 'Active Calls', value: 12 },
-  { label: 'Agents Online', value: 34 },
-  { label: 'Avg. Wait Time', value: '00:01:23' },
-  { label: 'New Tickets', value: 5 },
-];
+interface DashboardKpi {
+  label: string;
+  value: string | number;
+  icon: ElementType;
+  variant: KpiVariant;
+}
 
-export const Dashboard: React.FC = () => (
-  <>
-    <Typography variant="h4" gutterBottom>
-      Dashboard
-    </Typography>
-    <Grid container spacing={2}>
-      {kpis.map((kpi) => (
-        <Grid item xs={12} sm={6} md={3} key={kpi.label}>
-          <Card variant="outlined" sx={{ borderRadius: 2, boxShadow: 1 }}>
-            <CardContent>
-              <Typography color="textSecondary" gutterBottom>
-                {kpi.label}
-              </Typography>
-              <Typography variant="h5" component="div">
-                {kpi.value}
-              </Typography>
-            </CardContent>
-          </Card>
-        </Grid>
-      ))}
-    </Grid>
-  </>
-);
+const ROLE_KPIS: Record<Role, DashboardKpi[]> = {
+  Administrator: [
+    { label: 'Active Calls', value: 12, icon: PhoneInTalkOutlined, variant: 'info' },
+    { label: 'Agents Online', value: 34, icon: PeopleOutlineOutlined, variant: 'success' },
+    { label: 'Avg. Wait Time', value: '00:01:23', icon: AccessTimeOutlined, variant: 'warning' },
+    { label: 'New Tickets', value: 5, icon: ConfirmationNumberOutlined, variant: 'primary' },
+  ],
+  Agent: [
+    { label: 'My Calls Today', value: 18, icon: PhoneInTalkOutlined, variant: 'info' },
+    { label: 'Avg. Handle Time', value: '00:04:12', icon: AccessTimeOutlined, variant: 'warning' },
+    { label: 'Tasks Due', value: 3, icon: TaskAltOutlined, variant: 'primary' },
+    { label: 'CSAT Score', value: '4.7/5', icon: StarOutlined, variant: 'success' },
+  ],
+  Supervisor: [
+    { label: 'Agents Online', value: 32, icon: PeopleOutlineOutlined, variant: 'success' },
+    { label: 'Calls in Queue', value: 24, icon: QueueOutlined, variant: 'warning' },
+    { label: 'SLA Today', value: '91%', icon: TrendingUpOutlined, variant: 'info' },
+    { label: 'Avg. Wait Time', value: '00:01:48', icon: AccessTimeOutlined, variant: 'primary' },
+  ],
+  QualityAssurance: [
+    { label: 'Evaluations Pending', value: 12, icon: AssignmentTurnedInOutlined, variant: 'warning' },
+    { label: 'Avg. QA Score', value: '87%', icon: TrendingUpOutlined, variant: 'success' },
+    { label: 'Disputes Open', value: 3, icon: ReportProblemOutlined, variant: 'error' },
+    { label: 'Calibration Sessions', value: 2, icon: TuneOutlined, variant: 'info' },
+  ],
+  MIS: [
+    { label: 'Reports Generated', value: 46, icon: AssessmentOutlined, variant: 'info' },
+    { label: 'Active Users', value: 98, icon: PeopleOutlineOutlined, variant: 'success' },
+    { label: 'Data Exports', value: 9, icon: FileDownloadOutlined, variant: 'primary' },
+    { label: 'System Uptime', value: '99.98%', icon: StorageOutlined, variant: 'success' },
+  ],
+  CampaignManager: [
+    { label: 'Active Campaigns', value: 7, icon: CampaignOutlined, variant: 'primary' },
+    { label: 'Leads in Queue', value: 1240, icon: ListAltOutlined, variant: 'warning' },
+    { label: 'Contact Rate', value: '64%', icon: TrendingUpOutlined, variant: 'info' },
+    { label: 'Conversion Rate', value: '18%', icon: TrendingUpOutlined, variant: 'success' },
+  ],
+};
+
+export function Dashboard() {
+  const { role, displayName } = useRole();
+  const kpis = ROLE_KPIS[role];
+
+  return (
+    <Box>
+      <Typography variant="h4" sx={{ fontWeight: 700 }} gutterBottom>
+        Welcome back, {displayName.split(' ')[0]}
+      </Typography>
+      <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
+        Here's what's happening with your {role === 'Administrator' ? 'organization' : 'work'} today.
+      </Typography>
+      <Grid container spacing={2}>
+        {kpis.map((kpi) => (
+          <Grid size={{ xs: 12, sm: 6, md: 3 }} key={kpi.label}>
+            <KpiCard label={kpi.label} value={kpi.value} icon={kpi.icon} variant={kpi.variant} />
+          </Grid>
+        ))}
+      </Grid>
+    </Box>
+  );
+}

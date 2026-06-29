@@ -1,5 +1,5 @@
 {
-  "name": "xpodial",
+  "name": "nurodial",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -14,6 +14,9 @@
     "@emotion/styled": "^11.14.1",
     "@mui/icons-material": "^9.1.1",
     "@mui/material": "^9.1.2",
+    "@mui/x-charts": "^9.7.0",
+    "@mui/x-date-pickers": "^9.7.0",
+    "dayjs": "^1.11.21",
     "react": "^19.2.7",
     "react-dom": "^19.2.7",
     "react-router-dom": "^6.30.4"
