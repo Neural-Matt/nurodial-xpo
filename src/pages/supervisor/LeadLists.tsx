@@ -2,6 +2,7 @@ import { useState } from 'react';
 import {
   Box, Grid, Button, TextField, Select, MenuItem, FormControl, InputLabel,
   Table, TableHead, TableRow, TableCell, TableBody, Stack, Typography,
+  CircularProgress, Alert,
 } from '@mui/material';
 import AddOutlined from '@mui/icons-material/AddOutlined';
 import UploadFileOutlined from '@mui/icons-material/UploadFileOutlined';
@@ -12,8 +13,8 @@ import BlockOutlined from '@mui/icons-material/BlockOutlined';
 import { PageHeader } from '../../components/common/PageHeader';
 import { KpiCard } from '../../components/common/KpiCard';
 import { StatusBadge } from '../../components/common/StatusBadge';
-import { leads, leadsTotalCount } from '../../services/mock/leads';
-import { campaigns } from '../../services/mock/campaigns';
+import { fetchLeads, fetchCampaigns } from '../../services/api/client';
+import { useApiData } from '../../hooks/useApiData';
 
 const STATUS_TONE: Record<string, 'success' | 'warning' | 'error' | 'info' | 'neutral'> = {
   NEW: 'info',
@@ -26,15 +27,21 @@ const STATUS_TONE: Record<string, 'success' | 'warning' | 'error' | 'info' | 'ne
 };
 
 export function LeadLists() {
+  const { data: leads, loading: leadsLoading, error: leadsError } = useApiData(fetchLeads);
+  const { data: campaigns, loading: campaignsLoading } = useApiData(fetchCampaigns);
   const [search, setSearch] = useState('');
   const [campaignFilter, setCampaignFilter] = useState('all');
   const [statusFilter, setStatusFilter] = useState('all');
 
-  const newCount = leads.filter((l) => l.status === 'NEW').length;
-  const callbackCount = leads.filter((l) => l.status === 'CALLBK').length;
-  const dncCount = leads.filter((l) => l.status === 'DNC').length;
+  const loading = leadsLoading || campaignsLoading;
+  const list = leads ?? [];
+  const campaignList = campaigns ?? [];
 
-  const filtered = leads.filter((lead) => {
+  const newCount = list.filter((l) => l.status === 'NEW').length;
+  const callbackCount = list.filter((l) => l.status === 'CALLBK').length;
+  const dncCount = list.filter((l) => l.status === 'DNC').length;
+
+  const filtered = list.filter((lead) => {
     const term = search.trim().toLowerCase();
     const matchesTerm = !term
       || `${lead.firstName} ${lead.lastName}`.toLowerCase().includes(term)
@@ -44,11 +51,13 @@ export function LeadLists() {
     return matchesTerm && matchesCampaign && matchesStatus;
   });
 
+  const uniqueStatuses = [...new Set(list.map((l) => l.status))].sort();
+
   return (
     <Box>
       <PageHeader
         title="Leads Management"
-        subtitle="Import, assign, and update leads loaded into VICIDial campaigns."
+        subtitle="View and filter leads loaded into VICIdial campaigns."
         actions={
           <>
             <Button variant="outlined" startIcon={<UploadFileOutlined />}>Import Leads</Button>
@@ -59,7 +68,7 @@ export function LeadLists() {
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard label="Total Leads" value={leadsTotalCount.toLocaleString()} icon={ListAltOutlined} variant="neutral" />
+          <KpiCard label="Total Leads" value={list.length.toLocaleString()} icon={ListAltOutlined} variant="neutral" />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
           <KpiCard label="New" value={newCount} icon={FiberNewOutlined} variant="info" />
@@ -72,68 +81,86 @@ export function LeadLists() {
         </Grid>
       </Grid>
 
+      {leadsError && <Alert severity="error" sx={{ mb: 2 }}>{leadsError}</Alert>}
+
       <Stack direction="row" spacing={2} sx={{ mb: 2, flexWrap: 'wrap' }}>
         <TextField
-          placeholder="Search leads by name or phone..."
+          placeholder="Search by name or phone..."
           size="small"
           value={search}
-          onChange={(event) => setSearch(event.target.value)}
+          onChange={(e) => setSearch(e.target.value)}
           sx={{ minWidth: 280, flexGrow: 1 }}
         />
         <FormControl size="small" sx={{ minWidth: 160 }}>
           <InputLabel>Campaign</InputLabel>
-          <Select label="Campaign" value={campaignFilter} onChange={(event) => setCampaignFilter(event.target.value)}>
+          <Select label="Campaign" value={campaignFilter} onChange={(e) => setCampaignFilter(e.target.value)}>
             <MenuItem value="all">All Campaigns</MenuItem>
-            {campaigns.map((c) => <MenuItem key={c.campaignId} value={c.campaignId}>{c.campaignName}</MenuItem>)}
+            {campaignList.map((c) => (
+              <MenuItem key={c.campaignId} value={c.campaignId}>{c.campaignName}</MenuItem>
+            ))}
           </Select>
         </FormControl>
         <FormControl size="small" sx={{ minWidth: 140 }}>
           <InputLabel>Status</InputLabel>
-          <Select label="Status" value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)}>
+          <Select label="Status" value={statusFilter} onChange={(e) => setStatusFilter(e.target.value)}>
             <MenuItem value="all">All Status</MenuItem>
-            {Object.keys(STATUS_TONE).map((status) => <MenuItem key={status} value={status}>{status}</MenuItem>)}
+            {uniqueStatuses.map((status) => (
+              <MenuItem key={status} value={status}>{status}</MenuItem>
+            ))}
           </Select>
         </FormControl>
       </Stack>
 
       <Box sx={{ bgcolor: 'background.paper', borderRadius: 2, border: '1px solid rgba(0,0,0,0.08)', overflowX: 'auto' }}>
-        <Table size="small" sx={{ minWidth: 920, '& td, & th': { whiteSpace: 'nowrap' } }}>
-          <TableHead>
-            <TableRow>
-              <TableCell>Name</TableCell>
-              <TableCell>Phone</TableCell>
-              <TableCell>Campaign</TableCell>
-              <TableCell>List ID</TableCell>
-              <TableCell>Status</TableCell>
-              <TableCell>Called</TableCell>
-              <TableCell>Last Call</TableCell>
-              <TableCell>Next Callback</TableCell>
-            </TableRow>
-          </TableHead>
-          <TableBody>
-            {filtered.map((lead) => {
-              const campaign = campaigns.find((c) => c.campaignId === lead.campaignId);
-              return (
-                <TableRow key={lead.leadId} hover>
-                  <TableCell>
-                    <Typography variant="body2" sx={{ fontWeight: 600 }}>{lead.firstName} {lead.lastName}</Typography>
-                    <Typography variant="caption" color="text.secondary">{lead.email}</Typography>
+        {loading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
+        {!loading && (
+          <Table size="small" sx={{ minWidth: 880, '& td, & th': { whiteSpace: 'nowrap' } }}>
+            <TableHead>
+              <TableRow>
+                <TableCell>Name</TableCell>
+                <TableCell>Phone</TableCell>
+                <TableCell>Campaign</TableCell>
+                <TableCell>List ID</TableCell>
+                <TableCell>Status</TableCell>
+                <TableCell>Called</TableCell>
+                <TableCell>Last Call</TableCell>
+              </TableRow>
+            </TableHead>
+            <TableBody>
+              {filtered.map((lead) => {
+                const campaign = campaignList.find((c) => c.campaignId === lead.campaignId);
+                return (
+                  <TableRow key={lead.leadId} hover>
+                    <TableCell>
+                      <Typography variant="body2" sx={{ fontWeight: 600 }}>
+                        {lead.firstName} {lead.lastName}
+                      </Typography>
+                      <Typography variant="caption" color="text.secondary">{lead.email || '—'}</Typography>
+                    </TableCell>
+                    <TableCell>{lead.phoneNumber}</TableCell>
+                    <TableCell>{campaign?.campaignName ?? lead.campaignId ?? '—'}</TableCell>
+                    <TableCell>{lead.listId}</TableCell>
+                    <TableCell>
+                      <StatusBadge label={lead.status} tone={STATUS_TONE[lead.status] ?? 'neutral'} />
+                    </TableCell>
+                    <TableCell>{lead.calledCount}</TableCell>
+                    <TableCell>{lead.lastCallTime || '—'}</TableCell>
+                  </TableRow>
+                );
+              })}
+              {filtered.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={7} align="center" sx={{ py: 4, color: 'text.secondary' }}>
+                    No leads found.
                   </TableCell>
-                  <TableCell>{lead.phoneNumber}</TableCell>
-                  <TableCell>{campaign?.campaignName ?? lead.campaignId}</TableCell>
-                  <TableCell>{lead.listId}</TableCell>
-                  <TableCell><StatusBadge label={lead.status} tone={STATUS_TONE[lead.status]} /></TableCell>
-                  <TableCell>{lead.calledCount}</TableCell>
-                  <TableCell>{lead.lastCallTime || '—'}</TableCell>
-                  <TableCell>{lead.nextCallbackTime || '—'}</TableCell>
                 </TableRow>
-              );
-            })}
-          </TableBody>
-        </Table>
+              )}
+            </TableBody>
+          </Table>
+        )}
       </Box>
       <Typography variant="body2" color="text.secondary" sx={{ mt: 2 }}>
-        Showing {filtered.length} of {leadsTotalCount.toLocaleString()} leads
+        Showing {filtered.length} of {list.length.toLocaleString()} leads
       </Typography>
     </Box>
   );

@@ -43,3 +43,13 @@ export interface ApiDisposition {
   sale: boolean;
   dnc: boolean;
 }
+
+export interface ApiUser {
+  id: number;
+  username: string;
+  fullName: string;
+  userLevel: number;
+  role: 'Administrator' | 'Supervisor' | 'Agent';
+  userGroup: string;
+  status: 'Active' | 'Inactive';
+}

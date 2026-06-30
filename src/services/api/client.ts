@@ -127,3 +127,36 @@ export async function fetchDispositions(): Promise<Disposition[]> {
   const rows = await getJson<ApiDisposition[]>('/api/dispositions');
   return rows.map(toDisposition);
 }
+
+interface ApiUser {
+  id: number;
+  username: string;
+  fullName: string;
+  userLevel: number;
+  role: 'Administrator' | 'Supervisor' | 'Agent';
+  userGroup: string;
+  status: 'Active' | 'Inactive';
+}
+
+export interface AppUserApi {
+  id: number;
+  name: string;
+  username: string;
+  role: 'Administrator' | 'Supervisor' | 'Agent';
+  team: string;
+  status: 'Active' | 'Inactive' | 'Locked';
+  lastLogin: string;
+}
+
+export async function fetchUsers(): Promise<AppUserApi[]> {
+  const rows = await getJson<ApiUser[]>('/api/users');
+  return rows.map((row) => ({
+    id: row.id,
+    name: row.fullName,
+    username: row.username,
+    role: row.role,
+    team: row.userGroup,
+    status: row.status,
+    lastLogin: '',
+  }));
+}
