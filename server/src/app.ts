@@ -7,6 +7,7 @@ import { campaignsRouter } from './routes/campaigns.js';
 import { leadsRouter } from './routes/leads.js';
 import { dispositionsRouter } from './routes/dispositions.js';
 import { usersRouter } from './routes/users.js';
+import { liveAgentsRouter } from './routes/liveAgents.js';
 
 export const app = express();
 
@@ -24,6 +25,7 @@ app.use('/api/campaigns', campaignsRouter);
 app.use('/api/leads', leadsRouter);
 app.use('/api/dispositions', dispositionsRouter);
 app.use('/api/users', usersRouter);
+app.use('/api/live-agents', liveAgentsRouter);
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);

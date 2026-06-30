@@ -1,6 +1,21 @@
 import type { Campaign, Lead, Disposition } from '../../types/vicidial';
 import type { Role } from '../../types';
 
+export type LiveAgentStatus = 'READY' | 'INCALL' | 'PAUSED' | 'QUEUE' | 'CLOSER' | 'MQUEUE';
+
+export interface LiveAgent {
+  user: string;
+  fullName: string;
+  status: LiveAgentStatus;
+  campaignId: string;
+  callsToday: number;
+  statusDurationSec: number;
+  pauseCode: string;
+  pauseCodeLabel: string;
+  extension: string;
+  callerId: string;
+}
+
 const API_BASE_URL: string | undefined = import.meta.env.VITE_API_BASE_URL;
 
 export const TOKEN_KEY = 'nurodial.token';
@@ -146,6 +161,10 @@ export interface AppUserApi {
   team: string;
   status: 'Active' | 'Inactive' | 'Locked';
   lastLogin: string;
+}
+
+export async function fetchLiveAgents(): Promise<LiveAgent[]> {
+  return getJson<LiveAgent[]>('/api/live-agents');
 }
 
 export async function fetchUsers(): Promise<AppUserApi[]> {

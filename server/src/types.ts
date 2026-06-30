@@ -53,3 +53,16 @@ export interface ApiUser {
   userGroup: string;
   status: 'Active' | 'Inactive';
 }
+
+export interface ApiLiveAgent {
+  user: string;
+  fullName: string;
+  status: 'READY' | 'INCALL' | 'PAUSED' | 'QUEUE' | 'CLOSER' | 'MQUEUE';
+  campaignId: string;
+  callsToday: number;
+  statusDurationSec: number;
+  pauseCode: string;
+  pauseCodeLabel: string;
+  extension: string;
+  callerId: string;
+}
