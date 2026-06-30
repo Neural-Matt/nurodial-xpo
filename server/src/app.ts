@@ -1,6 +1,7 @@
 import express, { type Request, type Response, type NextFunction } from 'express';
 import cors from 'cors';
 import { config } from './config.js';
+import { authRouter } from './routes/auth.js';
 import { campaignsRouter } from './routes/campaigns.js';
 import { leadsRouter } from './routes/leads.js';
 import { dispositionsRouter } from './routes/dispositions.js';
@@ -12,6 +13,7 @@ app.use(express.json());
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));
 
+app.use('/api/auth', authRouter);
 app.use('/api/campaigns', campaignsRouter);
 app.use('/api/leads', leadsRouter);
 app.use('/api/dispositions', dispositionsRouter);

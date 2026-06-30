@@ -12,7 +12,10 @@ dist
 dist-ssr
 *.local
 
-# Backend secrets — never commit real credentials
+# Environment files — never commit real credentials or API URLs
+.env
+.env.*
+!.env.example
 server/.env
 
 # Editor directories and files

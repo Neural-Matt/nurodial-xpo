@@ -1,28 +1,51 @@
-// Fetch wrappers for the real NuroDial backend (server/), which bridges to
-// VICIDial's database. Not wired into any page yet — see server/README.md
-// for why (the backend hasn't been confirmed against a real VICIDial
-// install). Pages still import src/services/mock/* directly for now.
-//
-// When that's ready, a page swaps over by replacing its mock import with
-// the matching function here — same Campaign/Lead/Disposition shapes from
-// src/types/vicidial.ts, so no other code needs to change.
-
 import type { Campaign, Lead, Disposition } from '../../types/vicidial';
+import type { Role } from '../../types';
 
 const API_BASE_URL: string | undefined = import.meta.env.VITE_API_BASE_URL;
 
+export const TOKEN_KEY = 'nurodial.token';
+
 export function isApiConfigured(): boolean {
   return Boolean(API_BASE_URL);
+}
+
+function storedToken(): string | null {
+  return localStorage.getItem(TOKEN_KEY);
+}
+
+export interface LoginResponse {
+  token: string;
+  user: {
+    id: string;
+    username: string;
+    displayName: string;
+    role: Role;
+  };
+}
+
+export async function apiLogin(username: string, password: string): Promise<LoginResponse> {
+  if (!API_BASE_URL) throw new Error('VITE_API_BASE_URL is not set.');
+  const response = await fetch(`${API_BASE_URL}/api/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ username, password }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) throw new Error((body as { error?: string }).error ?? `Login failed (${response.status})`);
+  return body as LoginResponse;
 }
 
 async function getJson<T>(path: string): Promise<T> {
   if (!API_BASE_URL) {
     throw new Error('VITE_API_BASE_URL is not set — the real backend is not configured.');
   }
-  const response = await fetch(`${API_BASE_URL}${path}`);
+  const headers: Record<string, string> = {};
+  const token = storedToken();
+  if (token) headers['Authorization'] = `Bearer ${token}`;
+  const response = await fetch(`${API_BASE_URL}${path}`, { headers });
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
-    throw new Error(body.error ?? `Request to ${path} failed with status ${response.status}`);
+    throw new Error((body as { error?: string }).error ?? `Request to ${path} failed with status ${response.status}`);
   }
   return response.json() as Promise<T>;
 }
