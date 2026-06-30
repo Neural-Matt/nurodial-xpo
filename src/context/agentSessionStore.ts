@@ -57,10 +57,11 @@ export interface AgentSessionContextValue {
   availability: AvailabilityStatus;
   activeCall: ActiveCall | null;
   setCampaign: (campaignId: string) => void;
-  setAvailability: (status: AvailabilityStatus) => void;
-  startCall: (lead: Lead, mode: CallMode, direction?: CallDirection) => void;
+  setAvailability: (status: AvailabilityStatus) => Promise<void> | void;
+  startCall: (lead: Lead, mode: CallMode, direction?: CallDirection) => Promise<void> | void;
   advanceCallStatus: (status: CallStatus) => void;
-  endCall: () => void;
+  endCall: () => Promise<void> | void;
+  submitDisposition: (statusCode: string) => Promise<void>;
 }
 
 export const AgentSessionContext = createContext<AgentSessionContextValue | undefined>(undefined);

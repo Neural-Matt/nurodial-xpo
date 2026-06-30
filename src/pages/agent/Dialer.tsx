@@ -33,14 +33,15 @@ import { StatusBadge } from '../../components/common/StatusBadge';
 import { useAuth } from '../../context/useAuth';
 import { useAgentSession } from '../../context/useAgentSession';
 import { derivedAvailability, AVAILABILITY_TONE } from '../../context/agentSessionStore';
-import { leads } from '../../services/mock/leads';
-import { campaigns } from '../../services/mock/campaigns';
-import { dispositions } from '../../services/mock/dispositions';
 import { callScripts, defaultCallScript } from '../../services/mock/scripts';
-import { scheduleCallback, callbacks } from '../../services/mock/callbacks';
 import { knowledgeArticles, type TimelineEvent } from '../../services/mock/agentInteraction';
+import { useApiData } from '../../hooks/useApiData';
+import {
+  fetchCampaigns, fetchLeads, fetchDispositions, isApiConfigured,
+} from '../../services/api/client';
 import type { Lead } from '../../types/vicidial';
 import { colors } from '../../theme/palette';
+import WarningAmberOutlined from '@mui/icons-material/WarningAmberOutlined';
 
 const TIMELINE_ICONS: Record<TimelineEvent['icon'], { icon: ElementType; color: string }> = {
   call: { icon: PhoneOutlined, color: colors.info },
@@ -98,12 +99,26 @@ function makeAdHocLead(phoneNumber: string, campaignId: string | null, sourceId:
 
 export function Dialer() {
   const { user } = useAuth();
-  const { currentCampaignId, availability, activeCall, startCall, advanceCallStatus, endCall } = useAgentSession();
-  const currentCampaign = useMemo(() => campaigns.find((c) => c.campaignId === currentCampaignId), [currentCampaignId]);
-  const upNextLeads = useMemo(
-    () => leads.filter((l) => l.campaignId === currentCampaignId).slice(0, 5),
-    [currentCampaignId],
+  const {
+    currentCampaignId, availability, activeCall,
+    startCall, advanceCallStatus, endCall, submitDisposition,
+  } = useAgentSession();
+
+  const { data: campaignList } = useApiData(fetchCampaigns);
+  const { data: leadList } = useApiData(
+    () => fetchLeads(currentCampaignId ?? undefined),
   );
+  const { data: dispositionList } = useApiData(fetchDispositions);
+
+  const currentCampaign = useMemo(
+    () => (campaignList ?? []).find((c) => c.campaignId === currentCampaignId),
+    [campaignList, currentCampaignId],
+  );
+  const upNextLeads = useMemo(
+    () => (leadList ?? []).filter((l) => l.status === 'NEW' || l.status === 'QUEUE').slice(0, 5),
+    [leadList],
+  );
+  const dispositions = dispositionList ?? [];
 
   // Idle-state controls
   const [dialNumber, setDialNumber] = useState('');
@@ -218,24 +233,24 @@ export function Dialer() {
     endCall();
   };
 
+  const [dispositionSaving, setDispositionSaving] = useState(false);
+  const [dispositionError, setDispositionError] = useState<string | null>(null);
+
   const canSaveDisposition = Boolean(disposition)
     && (!selectedDisposition?.requiresNotes || dispositionNotes.trim().length > 0)
-    && (!selectedDisposition?.requiresCallback || callbackTime !== null);
+    && (!selectedDisposition?.requiresCallback || callbackTime !== null)
+    && !dispositionSaving;
 
-  const handleSaveDisposition = () => {
+  const handleSaveDisposition = async () => {
     if (!activeCall || !selectedDisposition) return;
-    if (selectedDisposition.requiresCallback && callbackTime) {
-      scheduleCallback({
-        id: `cb-${Date.now()}`,
-        leadId: activeCall.lead.leadId,
-        campaignId: activeCall.campaignId,
-        agentUser: user!.username,
-        scheduledTime: callbackTime.toISOString(),
-        notes: dispositionNotes,
-        createdAt: new Date().toISOString(),
-      });
+    setDispositionSaving(true);
+    setDispositionError(null);
+    try {
+      await submitDisposition(selectedDisposition.statusCode);
+    } catch (err) {
+      setDispositionError(err instanceof Error ? err.message : 'Failed to save disposition.');
+      setDispositionSaving(false);
     }
-    endCall();
   };
 
   const filteredArticles = knowledgeArticles
@@ -243,7 +258,6 @@ export function Dialer() {
     .slice()
     .sort((a, b) => (kbTab === 0 ? b.relevance - a.relevance : 0));
 
-  const leadCallbacks = activeCall ? callbacks.filter((cb) => cb.leadId === activeCall.lead.leadId) : [];
   const scriptText = (currentCampaign ? callScripts[currentCampaign.campaignId] : undefined) ?? defaultCallScript;
 
   return (
@@ -252,6 +266,17 @@ export function Dialer() {
         title="Dialer"
         subtitle={currentCampaign ? `Working campaign: ${currentCampaign.campaignName}` : 'Select a campaign to begin dialing.'}
       />
+
+      {isApiConfigured() && (
+        <Alert
+          icon={<WarningAmberOutlined fontSize="inherit" />}
+          severity="info"
+          sx={{ mb: 2 }}
+        >
+          Call state is synced from VICIdial every 5 seconds. You must be logged into a VICIdial
+          session for call controls to take effect.
+        </Alert>
+      )}
 
       {!currentCampaignId && (
         <Alert severity="warning" sx={{ mb: 3 }} action={<Button component={RouterLink} to="/agent/home/campaign-selection" size="small">Select Campaign</Button>}>
@@ -522,18 +547,6 @@ export function Dialer() {
                           </Grid>
                         ))}
                       </Grid>
-                      {leadCallbacks.length > 0 && (
-                        <Box>
-                          <Typography variant="subtitle2" sx={{ fontWeight: 700, mb: 1 }}>Scheduled Callbacks</Typography>
-                          <Stack spacing={1}>
-                            {leadCallbacks.map((cb) => (
-                              <Typography key={cb.id} variant="body2" color="text.secondary">
-                                {new Date(cb.scheduledTime).toLocaleString()} — {cb.notes || 'No notes'}
-                              </Typography>
-                            ))}
-                          </Stack>
-                        </Box>
-                      )}
                     </Stack>
                   )}
 
@@ -636,6 +649,9 @@ export function Dialer() {
               {activeCall.status === 'wrapup' && (
                 <Alert severity="warning" sx={{ mb: 2 }}>Call ended. Select a disposition to finish.</Alert>
               )}
+              {dispositionError && (
+                <Alert severity="error" sx={{ mb: 2 }}>{dispositionError}</Alert>
+              )}
               <LocalizationProvider dateAdapter={AdapterDayjs}>
                 <Stack direction="row" spacing={2} sx={{ alignItems: 'flex-start', flexWrap: 'wrap' }}>
                   <Select
@@ -664,8 +680,13 @@ export function Dialer() {
                     onChange={(event) => setDispositionNotes(event.target.value)}
                     sx={{ flex: 1, minWidth: 220 }}
                   />
-                  <Button variant="contained" startIcon={<SaveOutlined />} disabled={!canSaveDisposition} onClick={handleSaveDisposition}>
-                    Save Disposition
+                  <Button
+                    variant="contained"
+                    startIcon={dispositionSaving ? <CircularProgress size={16} color="inherit" /> : <SaveOutlined />}
+                    disabled={!canSaveDisposition}
+                    onClick={() => { void handleSaveDisposition(); }}
+                  >
+                    {dispositionSaving ? 'Saving…' : 'Save Disposition'}
                   </Button>
                 </Stack>
               </LocalizationProvider>

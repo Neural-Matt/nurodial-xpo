@@ -204,6 +204,60 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
   return getJson<DashboardStats>('/api/dashboard-stats');
 }
 
+export interface AgentLead {
+  leadId: string;
+  listId: string;
+  phoneNumber: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  city: string;
+  province: string;
+  address: string;
+  status: string;
+  calledCount: number;
+  vendorLeadCode: string;
+  sourceId: string;
+}
+
+export interface MyAgentStatus {
+  status: LiveAgentStatus;
+  campaignId: string;
+  extension: string;
+  callerId: string;
+  callsToday: number;
+  statusDurationSec: number;
+  leadId: string | null;
+  lead: AgentLead | null;
+}
+
+export async function fetchMyAgentStatus(): Promise<MyAgentStatus> {
+  return getJson<MyAgentStatus>('/api/agent/me');
+}
+
+export async function agentAction(
+  fn: string,
+  value: string,
+  extra?: Record<string, string>,
+): Promise<void> {
+  if (!API_BASE_URL) throw new Error('VITE_API_BASE_URL is not set.');
+  const token = storedToken();
+  const response = await fetch(`${API_BASE_URL}/api/agent/action`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ function: fn, value, ...extra }),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(
+      (body as { error?: string }).error ?? `Action ${fn} failed (${response.status})`,
+    );
+  }
+}
+
 export async function fetchUsers(): Promise<AppUserApi[]> {
   const rows = await getJson<ApiUser[]>('/api/users');
   return rows.map((row) => ({
