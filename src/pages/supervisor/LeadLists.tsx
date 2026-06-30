@@ -47,8 +47,8 @@ export function LeadLists() {
   return (
     <Box>
       <PageHeader
-        title="Lead Lists"
-        subtitle="Browse and manage leads loaded into VICIDial campaigns."
+        title="Leads Management"
+        subtitle="Import, assign, and update leads loaded into VICIDial campaigns."
         actions={
           <>
             <Button variant="outlined" startIcon={<UploadFileOutlined />}>Import Leads</Button>

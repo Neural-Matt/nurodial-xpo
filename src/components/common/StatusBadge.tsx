@@ -1,7 +1,7 @@
 import { Chip, type ChipProps } from '@mui/material';
 import { colors } from '../../theme/palette';
 
-type StatusTone = 'success' | 'warning' | 'error' | 'info' | 'primary' | 'neutral';
+export type StatusTone = 'success' | 'warning' | 'error' | 'info' | 'primary' | 'neutral';
 
 const STATUS_TONE_MAP: Record<string, StatusTone> = {
   active: 'success',

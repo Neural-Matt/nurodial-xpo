@@ -1,15 +1,14 @@
 import { useState } from 'react';
-import { useLocation, useNavigate, NavLink } from 'react-router-dom';
-import { Box, List, ListItemButton, ListItemIcon, ListItemText, Collapse, Menu, MenuItem, Typography, Divider } from '@mui/material';
+import { useLocation, NavLink } from 'react-router-dom';
+import { Box, List, ListItemButton, ListItemIcon, ListItemText, Collapse, Typography, Divider } from '@mui/material';
 import ExpandLessOutlined from '@mui/icons-material/ExpandLessOutlined';
 import ExpandMoreOutlined from '@mui/icons-material/ExpandMoreOutlined';
-import KeyboardArrowDownOutlined from '@mui/icons-material/KeyboardArrowDownOutlined';
 import HelpOutlineOutlined from '@mui/icons-material/HelpOutlineOutlined';
 import ChevronRightOutlined from '@mui/icons-material/ChevronRightOutlined';
 import ShieldOutlined from '@mui/icons-material/ShieldOutlined';
 import { Logo } from '../branding/Logo';
-import { useRole } from '../context/useRole';
-import { ROLE_LABELS } from '../context/roleStore';
+import { useAuth } from '../context/useAuth';
+import { ROLE_LABELS } from '../context/authStore';
 import { navConfigByRole, type NavNode } from '../config/navConfig';
 import { colors, SIDEBAR_WIDTH } from '../theme/palette';
 import type { Role } from '../types';
@@ -94,51 +93,34 @@ function NavItemRow({ node, depth, pathname }: { node: NavNode; depth: number; p
   );
 }
 
-function RoleSwitcher() {
-  const { role, setRole, roles } = useRole();
-  const navigate = useNavigate();
-  const [anchorEl, setAnchorEl] = useState<null | HTMLElement>(null);
-
-  const handleSelect = (next: Role) => {
-    setRole(next);
-    setAnchorEl(null);
-    navigate('/dashboard');
-  };
-
+function RoleBadge({ role }: { role: Role }) {
   return (
-    <>
-      <ListItemButton
-        onClick={(event) => setAnchorEl(event.currentTarget)}
-        sx={{
-          flexGrow: 0,
-          mx: 1.5,
-          mb: 1,
-          borderRadius: 1.5,
-          border: `1px solid ${colors.sidebarBorder}`,
-          color: '#fff',
-        }}
-      >
-        <ListItemIcon sx={{ color: colors.primary, minWidth: 32 }}>
-          <ShieldOutlined fontSize="small" />
-        </ListItemIcon>
-        <ListItemText primary={ROLE_LABELS[role]} slotProps={{ primary: { sx: { fontSize: 13, fontWeight: 600 } } }} />
-        <KeyboardArrowDownOutlined fontSize="small" />
-      </ListItemButton>
-      <Menu anchorEl={anchorEl} open={Boolean(anchorEl)} onClose={() => setAnchorEl(null)}>
-        {roles.map((r) => (
-          <MenuItem key={r} selected={r === role} onClick={() => handleSelect(r)}>
-            {ROLE_LABELS[r]}
-          </MenuItem>
-        ))}
-      </Menu>
-    </>
+    <Box
+      sx={{
+        display: 'flex',
+        alignItems: 'center',
+        mx: 1.5,
+        mb: 1,
+        px: 2,
+        py: 1,
+        borderRadius: 1.5,
+        border: `1px solid ${colors.sidebarBorder}`,
+        color: '#fff',
+      }}
+    >
+      <ListItemIcon sx={{ color: colors.primary, minWidth: 32 }}>
+        <ShieldOutlined fontSize="small" />
+      </ListItemIcon>
+      <ListItemText primary={ROLE_LABELS[role]} slotProps={{ primary: { sx: { fontSize: 13, fontWeight: 600 } } }} />
+    </Box>
   );
 }
 
 export function Sidebar() {
-  const { role } = useRole();
+  const { user } = useAuth();
   const { pathname } = useLocation();
-  const items = navConfigByRole[role];
+  if (!user) return null;
+  const items = navConfigByRole[user.role];
 
   return (
     <Box
@@ -153,7 +135,7 @@ export function Sidebar() {
       }}
     >
       <Logo />
-      <RoleSwitcher />
+      <RoleBadge role={user.role} />
       <Divider sx={{ borderColor: colors.sidebarBorder }} />
       <Box sx={{ flex: 1, overflowY: 'auto', py: 1 }}>
         <List disablePadding>

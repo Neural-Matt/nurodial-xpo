@@ -72,8 +72,8 @@ export function AutomationWorkflow() {
   return (
     <Box>
       <PageHeader
-        title="Automation & Workflow"
-        subtitle="Build powerful workflows to automate your business processes."
+        title="Process"
+        subtitle="Configure and manage business processes and workflows."
         actions={
           <>
             <Button variant="outlined" startIcon={<UploadFileOutlined />}>Import Workflow</Button>

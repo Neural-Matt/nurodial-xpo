@@ -7,13 +7,9 @@ import TaskAltOutlined from '@mui/icons-material/TaskAltOutlined';
 import StarOutlined from '@mui/icons-material/StarOutlined';
 import QueueOutlined from '@mui/icons-material/QueueOutlined';
 import TrendingUpOutlined from '@mui/icons-material/TrendingUpOutlined';
-import AssignmentTurnedInOutlined from '@mui/icons-material/AssignmentTurnedInOutlined';
-import ReportProblemOutlined from '@mui/icons-material/ReportProblemOutlined';
-import TuneOutlined from '@mui/icons-material/TuneOutlined';
 import CampaignOutlined from '@mui/icons-material/CampaignOutlined';
-import ListAltOutlined from '@mui/icons-material/ListAltOutlined';
 import { KpiCard, type KpiVariant } from '../components/common/KpiCard';
-import { useRole } from '../context/useRole';
+import { useAuth } from '../context/useAuth';
 import type { Role } from '../types';
 
 interface DashboardKpi {
@@ -42,28 +38,17 @@ const ROLE_KPIS: Record<Role, DashboardKpi[]> = {
     { label: 'SLA Today', value: '91%', icon: TrendingUpOutlined, variant: 'info' },
     { label: 'Avg. Wait Time', value: '00:01:48', icon: AccessTimeOutlined, variant: 'primary' },
   ],
-  QualityAssurance: [
-    { label: 'Evaluations Pending', value: 12, icon: AssignmentTurnedInOutlined, variant: 'warning' },
-    { label: 'Avg. QA Score', value: '87%', icon: TrendingUpOutlined, variant: 'success' },
-    { label: 'Disputes Open', value: 3, icon: ReportProblemOutlined, variant: 'error' },
-    { label: 'Calibration Sessions', value: 2, icon: TuneOutlined, variant: 'info' },
-  ],
-  CampaignManager: [
-    { label: 'Active Campaigns', value: 7, icon: CampaignOutlined, variant: 'primary' },
-    { label: 'Leads in Queue', value: 1240, icon: ListAltOutlined, variant: 'warning' },
-    { label: 'Contact Rate', value: '64%', icon: TrendingUpOutlined, variant: 'info' },
-    { label: 'Conversion Rate', value: '18%', icon: TrendingUpOutlined, variant: 'success' },
-  ],
 };
 
 export function Dashboard() {
-  const { role, displayName } = useRole();
+  const { user } = useAuth();
+  const role = user!.role;
   const kpis = ROLE_KPIS[role];
 
   return (
     <Box>
       <Typography variant="h4" sx={{ fontWeight: 700 }} gutterBottom>
-        Welcome back, {displayName.split(' ')[0]}
+        Welcome back, {user!.displayName.split(' ')[0]}
       </Typography>
       <Typography variant="body2" color="text.secondary" sx={{ mb: 3 }}>
         Here's what's happening with your {role === 'Administrator' ? 'organization' : 'work'} today.

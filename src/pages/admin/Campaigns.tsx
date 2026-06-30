@@ -31,8 +31,8 @@ export function Campaigns() {
   return (
     <Box>
       <PageHeader
-        title="Campaigns"
-        subtitle="Manage VICIDial dialer campaigns, dial settings, and lead pacing."
+        title="Blended Campaign"
+        subtitle="Create and manage inbound/outbound blended campaigns, dial settings, and lead pacing."
         actions={<Button variant="contained" startIcon={<AddOutlined />}>New Campaign</Button>}
       />
 

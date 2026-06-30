@@ -36,7 +36,7 @@ export function AnalyticsDashboard() {
   return (
     <Box>
       <PageHeader
-        title="Analytics Dashboard"
+        title="Report List"
         subtitle="Call volume, contact rates, and agent performance across all campaigns."
         actions={
           <>

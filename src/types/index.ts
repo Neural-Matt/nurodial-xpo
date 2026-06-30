@@ -6,12 +6,7 @@ export interface NavItem {
   roles: Role[];
 }
 
-export type Role =
-  | 'Administrator'
-  | 'Agent'
-  | 'Supervisor'
-  | 'QualityAssurance'
-  | 'CampaignManager';
+export type Role = 'Administrator' | 'Supervisor' | 'Agent';
 
 export interface Breadcrumb {
   label: string;

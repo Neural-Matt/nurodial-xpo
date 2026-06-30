@@ -19,8 +19,11 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { KpiCard } from '../../components/common/KpiCard';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { DetailDrawer } from '../../components/common/DetailDrawer';
-import { users, userKpis, ROLE_TONE, ROLE_LABELS, defaultPermissions, activityLog } from '../../services/mock/users';
+import { users, ROLE_TONE, defaultPermissions, activityLog } from '../../services/mock/users';
+import { ROLE_LABELS } from '../../context/authStore';
 import type { AppUser, PermissionItem } from '../../types/domain';
+
+const agentUsers = users.filter((user) => user.role === 'Agent');
 
 export function UserManagement() {
   const [search, setSearch] = useState('');
@@ -29,11 +32,18 @@ export function UserManagement() {
   const [permissions, setPermissions] = useState<PermissionItem[]>(defaultPermissions());
   const [menuAnchor, setMenuAnchor] = useState<HTMLElement | null>(null);
 
-  const filteredUsers = users.filter((user) => {
+  const filteredUsers = agentUsers.filter((user) => {
     const term = search.trim().toLowerCase();
     if (!term) return true;
     return user.name.toLowerCase().includes(term) || user.email.toLowerCase().includes(term) || user.role.toLowerCase().includes(term);
   });
+
+  const kpis = {
+    total: agentUsers.length,
+    active: agentUsers.filter((u) => u.status === 'Active').length,
+    inactive: agentUsers.filter((u) => u.status === 'Inactive').length,
+    locked: agentUsers.filter((u) => u.status === 'Locked').length,
+  };
 
   const openDrawer = (user: AppUser) => {
     setSelectedUser(user);
@@ -48,34 +58,34 @@ export function UserManagement() {
   return (
     <Box>
       <PageHeader
-        title="User Management"
-        subtitle="Manage system users, roles and permissions."
+        title="Users"
+        subtitle="Create, edit, and deactivate agent accounts. Reset passwords and assign campaigns and skills."
         actions={
           <>
-            <Button variant="outlined" startIcon={<UploadFileOutlined />}>Import Users</Button>
-            <Button variant="contained" startIcon={<AddOutlined />}>Add User</Button>
+            <Button variant="outlined" startIcon={<UploadFileOutlined />}>Import Agents</Button>
+            <Button variant="contained" startIcon={<AddOutlined />}>Add Agent</Button>
           </>
         }
       />
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard label="Total Users" value={userKpis.total} icon={PeopleOutlineOutlined} variant="neutral" />
+          <KpiCard label="Total Agents" value={kpis.total} icon={PeopleOutlineOutlined} variant="neutral" />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard label="Active Users" value={userKpis.active} icon={CheckCircleOutlined} variant="success" />
+          <KpiCard label="Active Agents" value={kpis.active} icon={CheckCircleOutlined} variant="success" />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard label="Inactive Users" value={userKpis.inactive} icon={PauseCircleOutlined} variant="warning" />
+          <KpiCard label="Inactive Agents" value={kpis.inactive} icon={PauseCircleOutlined} variant="warning" />
         </Grid>
         <Grid size={{ xs: 12, sm: 6, md: 3 }}>
-          <KpiCard label="Locked Users" value={userKpis.locked} icon={LockOutlined} variant="error" />
+          <KpiCard label="Locked Agents" value={kpis.locked} icon={LockOutlined} variant="error" />
         </Grid>
       </Grid>
 
       <Stack direction="row" spacing={2} sx={{ mb: 2, flexWrap: 'wrap' }}>
         <TextField
-          placeholder="Search users by name, email or role..."
+          placeholder="Search agents by name, email or team..."
           size="small"
           value={search}
           onChange={(event) => setSearch(event.target.value)}
@@ -139,7 +149,7 @@ export function UserManagement() {
         </Table>
         <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', px: 2, py: 1.5 }}>
           <Typography variant="body2" color="text.secondary">
-            Showing 1 to {filteredUsers.length} of {userKpis.total} users
+            Showing 1 to {filteredUsers.length} of {kpis.total} agents
           </Typography>
           <Stack direction="row" spacing={0.5}>
             {[1, 2, 3].map((p) => (

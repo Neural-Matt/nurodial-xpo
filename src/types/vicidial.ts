@@ -55,6 +55,10 @@ export interface Campaign {
   conversionRate: number;
   dropRate: number;
   avgHandleTime: number;
+  description: string;
+  type: 'Inbound' | 'Outbound' | 'Blended';
+  status: 'Active' | 'Paused' | 'Closed';
+  assignedAgents: string[];
 }
 
 export interface CallSession {
