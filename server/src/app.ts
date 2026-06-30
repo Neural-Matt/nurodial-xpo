@@ -8,6 +8,8 @@ import { leadsRouter } from './routes/leads.js';
 import { dispositionsRouter } from './routes/dispositions.js';
 import { usersRouter } from './routes/users.js';
 import { liveAgentsRouter } from './routes/liveAgents.js';
+import { agentStatsRouter } from './routes/agentStats.js';
+import { dashboardStatsRouter } from './routes/dashboardStats.js';
 
 export const app = express();
 
@@ -26,6 +28,8 @@ app.use('/api/leads', leadsRouter);
 app.use('/api/dispositions', dispositionsRouter);
 app.use('/api/users', usersRouter);
 app.use('/api/live-agents', liveAgentsRouter);
+app.use('/api/agent-stats', agentStatsRouter);
+app.use('/api/dashboard-stats', dashboardStatsRouter);
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);

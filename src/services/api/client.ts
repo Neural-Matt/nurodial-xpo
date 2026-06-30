@@ -167,6 +167,43 @@ export async function fetchLiveAgents(): Promise<LiveAgent[]> {
   return getJson<LiveAgent[]>('/api/live-agents');
 }
 
+export interface AgentStat {
+  user: string;
+  fullName: string;
+  status: LiveAgentStatus;
+  campaignId: string;
+  callsToday: number;
+  statusDurationSec: number;
+  pauseCode: string;
+  pauseCodeLabel: string;
+  extension: string;
+  totalTalkSec: number;
+  totalPauseSec: number;
+  totalWaitSec: number;
+  avgTalkSec: number;
+}
+
+export async function fetchAgentStats(): Promise<AgentStat[]> {
+  return getJson<AgentStat[]>('/api/agent-stats');
+}
+
+export interface DashboardStats {
+  agentsOnline: number;
+  activeCalls: number;
+  pausedAgents: number;
+  callsToday: number;
+  avgTalkSecToday: number;
+  activeCampaigns: number;
+  newLeads: number;
+  myCallsToday: number;
+  myTalkSecToday: number;
+  myAvgTalkSecToday: number;
+}
+
+export async function fetchDashboardStats(): Promise<DashboardStats> {
+  return getJson<DashboardStats>('/api/dashboard-stats');
+}
+
 export async function fetchUsers(): Promise<AppUserApi[]> {
   const rows = await getJson<ApiUser[]>('/api/users');
   return rows.map((row) => ({

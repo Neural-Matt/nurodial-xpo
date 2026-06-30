@@ -54,6 +54,36 @@ export interface ApiUser {
   status: 'Active' | 'Inactive';
 }
 
+export interface ApiAgentStat {
+  user: string;
+  fullName: string;
+  status: 'READY' | 'INCALL' | 'PAUSED' | 'QUEUE' | 'CLOSER' | 'MQUEUE';
+  campaignId: string;
+  callsToday: number;
+  statusDurationSec: number;
+  pauseCode: string;
+  pauseCodeLabel: string;
+  extension: string;
+  totalTalkSec: number;
+  totalPauseSec: number;
+  totalWaitSec: number;
+  avgTalkSec: number;
+}
+
+export interface ApiDashboardStats {
+  agentsOnline: number;
+  activeCalls: number;
+  pausedAgents: number;
+  callsToday: number;
+  avgTalkSecToday: number;
+  activeCampaigns: number;
+  newLeads: number;
+  // agent-scoped (only populated when role === 'Agent')
+  myCallsToday: number;
+  myTalkSecToday: number;
+  myAvgTalkSecToday: number;
+}
+
 export interface ApiLiveAgent {
   user: string;
   fullName: string;
