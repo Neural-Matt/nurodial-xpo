@@ -1,19 +1,26 @@
 import { useEffect, useRef, useState } from 'react';
 import {
   Box, Grid, Card, CardContent, Typography, IconButton, Select, MenuItem,
-  Avatar, Stack, Alert, Chip, FormControl, InputLabel, Tooltip,
+  Avatar, Stack, Alert, Chip, FormControl, InputLabel, Tooltip, Button, Snackbar,
 } from '@mui/material';
 import PeopleOutlineOutlined from '@mui/icons-material/PeopleOutlineOutlined';
 import PhoneInTalkOutlined from '@mui/icons-material/PhoneInTalkOutlined';
 import CheckCircleOutlined from '@mui/icons-material/CheckCircleOutlined';
 import PauseCircleOutlined from '@mui/icons-material/PauseCircleOutlined';
 import RefreshOutlined from '@mui/icons-material/RefreshOutlined';
+import HeadsetMicOutlined from '@mui/icons-material/HeadsetMicOutlined';
+import RecordVoiceOverOutlined from '@mui/icons-material/RecordVoiceOverOutlined';
+import CampaignOutlined from '@mui/icons-material/CampaignOutlined';
 import { PageHeader } from '../../components/common/PageHeader';
 import { KpiCard } from '../../components/common/KpiCard';
-import { fetchLiveAgents, type LiveAgent, type LiveAgentStatus } from '../../services/api/client';
+import {
+  fetchLiveAgents, fetchAgentPhones, monitorAgent,
+  type LiveAgent, type LiveAgentStatus, type MonitorMode,
+} from '../../services/api/client';
 import { colors } from '../../theme/palette';
 
 const POLL_INTERVAL_MS = 10_000;
+const SUPERVISOR_EXTENSION_KEY = 'nurodial.supervisor.extension';
 
 // --- status display config ---------------------------------------------------
 
@@ -45,9 +52,12 @@ function formatDuration(totalSec: number): string {
 interface AgentCardProps {
   agent: LiveAgent;
   fetchedAt: number; // ms timestamp of last successful fetch
+  myExtension: string;
+  onMonitor: (agent: LiveAgent, mode: MonitorMode) => void;
+  monitoringKey: string | null; // `${user}:${mode}` of an in-flight request, for disabling buttons
 }
 
-function AgentCard({ agent, fetchedAt }: AgentCardProps) {
+function AgentCard({ agent, fetchedAt, myExtension, onMonitor, monitoringKey }: AgentCardProps) {
   const [, setTick] = useState(0);
   useEffect(() => {
     const id = setInterval(() => setTick((t) => t + 1), 1000);
@@ -113,6 +123,46 @@ function AgentCard({ agent, fetchedAt }: AgentCardProps) {
             />
           )}
         </Stack>
+
+        {agent.status === 'INCALL' && (
+          <Tooltip title={myExtension ? '' : 'Choose your phone extension above first'}>
+            <Stack direction="row" spacing={0.5} sx={{ mt: 1.5 }}>
+              <Button
+                size="small"
+                variant="outlined"
+                fullWidth
+                startIcon={<HeadsetMicOutlined fontSize="small" />}
+                disabled={!myExtension || monitoringKey === `${agent.user}:monitor`}
+                onClick={() => onMonitor(agent, 'monitor')}
+                sx={{ fontSize: 11, minWidth: 0, px: 0.5 }}
+              >
+                Monitor
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                fullWidth
+                startIcon={<RecordVoiceOverOutlined fontSize="small" />}
+                disabled={!myExtension || monitoringKey === `${agent.user}:whisper`}
+                onClick={() => onMonitor(agent, 'whisper')}
+                sx={{ fontSize: 11, minWidth: 0, px: 0.5 }}
+              >
+                Whisper
+              </Button>
+              <Button
+                size="small"
+                variant="outlined"
+                fullWidth
+                startIcon={<CampaignOutlined fontSize="small" />}
+                disabled={!myExtension || monitoringKey === `${agent.user}:barge`}
+                onClick={() => onMonitor(agent, 'barge')}
+                sx={{ fontSize: 11, minWidth: 0, px: 0.5 }}
+              >
+                Barge
+              </Button>
+            </Stack>
+          </Tooltip>
+        )}
       </CardContent>
     </Card>
   );
@@ -128,6 +178,32 @@ export function LiveMonitoring() {
   const [lastUpdated, setLastUpdated] = useState<Date>(new Date());
   const [campaignFilter, setCampaignFilter] = useState('all');
   const fetchingRef = useRef(false);
+
+  const [phones, setPhones] = useState<{ extension: string; protocol: string }[]>([]);
+  const [myExtension, setMyExtension] = useState(() => localStorage.getItem(SUPERVISOR_EXTENSION_KEY) ?? '');
+  const [monitoringKey, setMonitoringKey] = useState<string | null>(null);
+  const [monitorError, setMonitorError] = useState<string | null>(null);
+  const [monitorSuccess, setMonitorSuccess] = useState<string | null>(null);
+
+  useEffect(() => {
+    fetchAgentPhones().then(setPhones).catch(() => {});
+  }, []);
+
+  const handleExtensionChange = (value: string) => {
+    setMyExtension(value);
+    localStorage.setItem(SUPERVISOR_EXTENSION_KEY, value);
+  };
+
+  const handleMonitor = (agent: LiveAgent, mode: MonitorMode) => {
+    if (!myExtension) return;
+    const key = `${agent.user}:${mode}`;
+    setMonitoringKey(key);
+    setMonitorError(null);
+    monitorAgent(agent.user, mode, myExtension)
+      .then(() => setMonitorSuccess(`Ringing your phone (ext. ${myExtension}) to ${mode} ${agent.fullName}…`))
+      .catch((err: unknown) => setMonitorError(err instanceof Error ? err.message : `Failed to ${mode} ${agent.fullName}.`))
+      .finally(() => setMonitoringKey((k) => (k === key ? null : k)));
+  };
 
   const doFetch = () => {
     if (fetchingRef.current) return;
@@ -190,6 +266,22 @@ export function LiveMonitoring() {
             <IconButton size="small" onClick={doFetch} disabled={loading}>
               <RefreshOutlined fontSize="small" />
             </IconButton>
+            <FormControl size="small" sx={{ minWidth: 170 }}>
+              <InputLabel>Your Phone</InputLabel>
+              <Select
+                label="Your Phone"
+                value={myExtension}
+                onChange={(e) => handleExtensionChange(e.target.value)}
+                displayEmpty
+              >
+                <MenuItem value="">Choose extension…</MenuItem>
+                {phones.map((phone) => (
+                  <MenuItem key={phone.extension} value={phone.extension}>
+                    {phone.extension} ({phone.protocol})
+                  </MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             {campaigns.length > 0 && (
               <FormControl size="small" sx={{ minWidth: 150 }}>
                 <InputLabel>Campaign</InputLabel>
@@ -220,6 +312,7 @@ export function LiveMonitoring() {
       </Grid>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {monitorError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setMonitorError(null)}>{monitorError}</Alert>}
 
       {/* Agent Wall */}
       {!loading && filtered.length === 0 ? (
@@ -238,11 +331,24 @@ export function LiveMonitoring() {
         <Grid container spacing={2}>
           {filtered.map((agent) => (
             <Grid key={agent.user} size={{ xs: 12, sm: 6, md: 4, lg: 3 }}>
-              <AgentCard agent={agent} fetchedAt={fetchedAt} />
+              <AgentCard
+                agent={agent}
+                fetchedAt={fetchedAt}
+                myExtension={myExtension}
+                onMonitor={handleMonitor}
+                monitoringKey={monitoringKey}
+              />
             </Grid>
           ))}
         </Grid>
       )}
+
+      <Snackbar
+        open={Boolean(monitorSuccess)}
+        autoHideDuration={4000}
+        onClose={() => setMonitorSuccess(null)}
+        message={monitorSuccess}
+      />
     </Box>
   );
 }
