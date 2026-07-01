@@ -3,23 +3,31 @@ import {
   Box, Grid, Button, Table, TableHead, TableRow, TableCell, TableBody,
   Stack, Chip, Typography, CircularProgress, Alert, Dialog, DialogTitle,
   DialogContent, DialogActions, TextField, MenuItem, Select, InputLabel, FormControl,
+  Checkbox, FormControlLabel, IconButton,
 } from '@mui/material';
 import AddOutlined from '@mui/icons-material/AddOutlined';
 import CampaignOutlined from '@mui/icons-material/CampaignOutlined';
 import PauseCircleOutlined from '@mui/icons-material/PauseCircleOutlined';
 import ListAltOutlined from '@mui/icons-material/ListAltOutlined';
+import BlockOutlined from '@mui/icons-material/BlockOutlined';
+import PlayCircleOutlined from '@mui/icons-material/PlayCircleOutlined';
 import { PageHeader } from '../../components/common/PageHeader';
 import { KpiCard } from '../../components/common/KpiCard';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { DetailDrawer } from '../../components/common/DetailDrawer';
-import { fetchCampaigns, createCampaign, updateCampaign } from '../../services/api/client';
+import {
+  fetchCampaigns, createCampaign, updateCampaign, fetchLists, createList, updateList,
+} from '../../services/api/client';
 import { useApiData } from '../../hooks/useApiData';
 import type { Campaign } from '../../types/vicidial';
 
-// Deliberately a subset of VICIdial's 12 dial_method values — matches the
-// backend's ALLOWED_DIAL_METHODS restriction.
-const DIAL_METHODS = ['MANUAL', 'RATIO', 'ADAPT_HARD_LIMIT', 'INBOUND_MAN'];
+const DIAL_METHODS = [
+  'MANUAL', 'RATIO', 'ADAPT_HARD_LIMIT', 'ADAPT_TAPERED', 'ADAPT_AVERAGE', 'ADAPT_PERCENTMAX',
+  'INBOUND_MAN', 'SHARED_RATIO', 'SHARED_ADAPT_HARD_LIMIT', 'SHARED_ADAPT_TAPERED',
+  'SHARED_ADAPT_AVERAGE', 'SHARED_ADAPT_PERCENTMAX',
+];
 const CAMPAIGN_ID_PATTERN = /^[A-Za-z0-9_]{2,8}$/;
+const LIST_ID_PATTERN = /^[0-9]{1,14}$/;
 
 interface CampaignFormState {
   campaignId: string;
@@ -28,10 +36,19 @@ interface CampaignFormState {
   autoDialLevel: string;
   hopperLevel: string;
   localCallTime: string;
+  campaignCid: string;
+  wrapupSeconds: string;
+  dialTimeout: string;
+  scheduledCallbacks: boolean;
+  voicemailExt: string;
 }
 
 function emptyForm(): CampaignFormState {
-  return { campaignId: '', campaignName: '', dialMethod: 'MANUAL', autoDialLevel: '0', hopperLevel: '1', localCallTime: '9am-9pm' };
+  return {
+    campaignId: '', campaignName: '', dialMethod: 'MANUAL', autoDialLevel: '0', hopperLevel: '1',
+    localCallTime: '9am-9pm', campaignCid: '', wrapupSeconds: '0', dialTimeout: '60',
+    scheduledCallbacks: false, voicemailExt: '',
+  };
 }
 
 function campaignToForm(campaign: Campaign): CampaignFormState {
@@ -42,6 +59,11 @@ function campaignToForm(campaign: Campaign): CampaignFormState {
     autoDialLevel: String(campaign.dialLevel),
     hopperLevel: String(campaign.hopperLevel),
     localCallTime: campaign.localCallTime,
+    campaignCid: campaign.campaignCid,
+    wrapupSeconds: String(campaign.wrapupSeconds),
+    dialTimeout: String(campaign.dialTimeout),
+    scheduledCallbacks: campaign.scheduledCallbacks,
+    voicemailExt: campaign.voicemailExt,
   };
 }
 
@@ -130,6 +152,46 @@ function CampaignFormDialog({ open, mode, initial, onClose, onSave }: CampaignFo
             fullWidth
             size="small"
           />
+          <TextField
+            label="Caller ID"
+            value={form.campaignCid}
+            onChange={(e) => setForm({ ...form, campaignCid: e.target.value })}
+            placeholder="e.g. 5551234567"
+            fullWidth
+            size="small"
+          />
+          <TextField
+            label="Dial Timeout (sec)"
+            type="number"
+            value={form.dialTimeout}
+            onChange={(e) => setForm({ ...form, dialTimeout: e.target.value })}
+            fullWidth
+            size="small"
+          />
+          <TextField
+            label="Wrap-up Seconds"
+            type="number"
+            value={form.wrapupSeconds}
+            onChange={(e) => setForm({ ...form, wrapupSeconds: e.target.value })}
+            fullWidth
+            size="small"
+          />
+          <TextField
+            label="Voicemail Extension"
+            value={form.voicemailExt}
+            onChange={(e) => setForm({ ...form, voicemailExt: e.target.value })}
+            fullWidth
+            size="small"
+          />
+          <FormControlLabel
+            control={
+              <Checkbox
+                checked={form.scheduledCallbacks}
+                onChange={(e) => setForm({ ...form, scheduledCallbacks: e.target.checked })}
+              />
+            }
+            label="Allow scheduled callbacks"
+          />
         </Stack>
       </DialogContent>
       <DialogActions sx={{ px: 3, pb: 2 }}>
@@ -139,6 +201,130 @@ function CampaignFormDialog({ open, mode, initial, onClose, onSave }: CampaignFo
         </Button>
       </DialogActions>
     </Dialog>
+  );
+}
+
+function CampaignListsTab({ campaignId, allCampaigns }: { campaignId: string; allCampaigns: Campaign[] }) {
+  const { data: lists, loading, error, reload } = useApiData(() => fetchLists(campaignId));
+  const [newListId, setNewListId] = useState('');
+  const [newListName, setNewListName] = useState('');
+  const [creating, setCreating] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  const listRows = lists ?? [];
+  const canCreate = LIST_ID_PATTERN.test(newListId.trim()) && newListName.trim().length > 0;
+
+  const handleCreate = async () => {
+    setCreating(true);
+    setActionError(null);
+    try {
+      await createList({ listId: newListId.trim(), listName: newListName.trim(), campaignId });
+      setNewListId('');
+      setNewListName('');
+      reload();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to create list.');
+    } finally {
+      setCreating(false);
+    }
+  };
+
+  const handleToggleActive = async (listId: string, active: boolean) => {
+    setActionError(null);
+    try {
+      await updateList(listId, { active });
+      reload();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to update list.');
+    }
+  };
+
+  const handleReassign = async (listId: string, newCampaignId: string) => {
+    setActionError(null);
+    try {
+      await updateList(listId, { campaignId: newCampaignId });
+      reload();
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to reassign list.');
+    }
+  };
+
+  return (
+    <Stack spacing={2}>
+      {actionError && <Alert severity="error" onClose={() => setActionError(null)}>{actionError}</Alert>}
+      {error && <Alert severity="error">{error}</Alert>}
+
+      <Stack direction="row" spacing={1} sx={{ flexWrap: 'wrap' }}>
+        <TextField
+          label="List ID"
+          size="small"
+          value={newListId}
+          onChange={(e) => setNewListId(e.target.value.replace(/\D/g, ''))}
+          sx={{ width: 110 }}
+        />
+        <TextField
+          label="List Name"
+          size="small"
+          value={newListName}
+          onChange={(e) => setNewListName(e.target.value)}
+          sx={{ flex: 1, minWidth: 140 }}
+        />
+        <Button variant="outlined" disabled={!canCreate || creating} onClick={() => { void handleCreate(); }}>
+          {creating ? 'Adding…' : 'Add List'}
+        </Button>
+      </Stack>
+
+      {loading && <Box sx={{ display: 'flex', justifyContent: 'center', py: 3 }}><CircularProgress size={24} /></Box>}
+
+      {!loading && (
+        <Table size="small">
+          <TableHead>
+            <TableRow>
+              <TableCell>List ID</TableCell>
+              <TableCell>Name</TableCell>
+              <TableCell>Leads</TableCell>
+              <TableCell>Status</TableCell>
+              <TableCell>Move to</TableCell>
+              <TableCell align="right"></TableCell>
+            </TableRow>
+          </TableHead>
+          <TableBody>
+            {listRows.map((l) => (
+              <TableRow key={l.listId}>
+                <TableCell>{l.listId}</TableCell>
+                <TableCell>{l.listName}</TableCell>
+                <TableCell>{l.leadCount}</TableCell>
+                <TableCell><StatusBadge label={l.active ? 'Active' : 'Paused'} tone={l.active ? 'success' : 'neutral'} /></TableCell>
+                <TableCell>
+                  <Select
+                    size="small"
+                    value={l.campaignId}
+                    onChange={(e) => { void handleReassign(l.listId, e.target.value); }}
+                    sx={{ minWidth: 110 }}
+                  >
+                    {allCampaigns.map((c) => (
+                      <MenuItem key={c.campaignId} value={c.campaignId}>{c.campaignId}</MenuItem>
+                    ))}
+                  </Select>
+                </TableCell>
+                <TableCell align="right">
+                  <IconButton size="small" onClick={() => { void handleToggleActive(l.listId, !l.active); }}>
+                    {l.active ? <BlockOutlined fontSize="small" /> : <PlayCircleOutlined fontSize="small" />}
+                  </IconButton>
+                </TableCell>
+              </TableRow>
+            ))}
+            {listRows.length === 0 && (
+              <TableRow>
+                <TableCell colSpan={6} align="center" sx={{ py: 3, color: 'text.secondary' }}>
+                  No lists assigned to this campaign.
+                </TableCell>
+              </TableRow>
+            )}
+          </TableBody>
+        </Table>
+      )}
+    </Stack>
   );
 }
 
@@ -176,6 +362,11 @@ export function Campaigns() {
       autoDialLevel: Number(form.autoDialLevel) || 0,
       hopperLevel: Number(form.hopperLevel) || 0,
       localCallTime: form.localCallTime.trim(),
+      campaignCid: form.campaignCid.trim(),
+      wrapupSeconds: Number(form.wrapupSeconds) || 0,
+      dialTimeout: Number(form.dialTimeout) || 0,
+      scheduledCallbacks: form.scheduledCallbacks,
+      voicemailExt: form.voicemailExt.trim(),
     };
     if (dialogMode === 'create') {
       await createCampaign({ campaignId: form.campaignId.trim(), ...payload });
@@ -298,6 +489,11 @@ export function Campaigns() {
                     ['Dial Level', selected.dialLevel],
                     ['Hopper Level', selected.hopperLevel],
                     ['Call Hours', selected.localCallTime || '—'],
+                    ['Caller ID', selected.campaignCid || '—'],
+                    ['Dial Timeout', `${selected.dialTimeout}s`],
+                    ['Wrap-up Seconds', selected.wrapupSeconds],
+                    ['Voicemail Ext', selected.voicemailExt || '—'],
+                    ['Scheduled Callbacks', selected.scheduledCallbacks ? 'Enabled' : 'Disabled'],
                     ['Type', selected.type],
                     ['Status', selected.status],
                   ] as const).map(([label, value]) => (
@@ -316,6 +512,10 @@ export function Campaigns() {
                   )}
                 </Stack>
               ),
+            },
+            {
+              label: 'Lists',
+              content: <CampaignListsTab campaignId={selected.campaignId} allCampaigns={list} />,
             },
           ]}
           footer={

@@ -12,8 +12,22 @@ export interface ApiCampaign {
   autoDialLevel: number;
   hopperLevel: number;
   localCallTime: string;
+  campaignCid: string;
+  wrapupSeconds: number;
+  dialTimeout: number;
+  scheduledCallbacks: boolean;
+  voicemailExt: string;
   type: 'Inbound' | 'Outbound'; // best-effort derivation from dial_method; "Blended" isn't derivable from this table alone
   status: 'Active' | 'Paused'; // derived from active Y/N; VICIDial has no native "Closed" campaign state
+}
+
+export interface ApiList {
+  listId: string;
+  listName: string;
+  campaignId: string;
+  active: boolean;
+  listDescription: string;
+  leadCount: number;
 }
 
 export interface ApiLead {

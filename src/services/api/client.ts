@@ -76,6 +76,11 @@ interface ApiCampaign {
   autoDialLevel: number;
   hopperLevel: number;
   localCallTime: string;
+  campaignCid: string;
+  wrapupSeconds: number;
+  dialTimeout: number;
+  scheduledCallbacks: boolean;
+  voicemailExt: string;
   type: 'Inbound' | 'Outbound';
   status: 'Active' | 'Paused';
 }
@@ -89,9 +94,13 @@ function toCampaign(row: ApiCampaign): Campaign {
     dialLevel: row.autoDialLevel,
     hopperLevel: row.hopperLevel,
     localCallTime: row.localCallTime,
+    campaignCid: row.campaignCid,
+    wrapupSeconds: row.wrapupSeconds,
+    dialTimeout: row.dialTimeout,
+    scheduledCallbacks: row.scheduledCallbacks,
+    voicemailExt: row.voicemailExt,
     leadOrder: '',
     dialStatuses: [],
-    dialTimeout: 0,
     activeAgents: 0,
     leadsLoaded: 0,
     leadsRemaining: 0,
@@ -120,6 +129,11 @@ export interface CreateCampaignInput {
   autoDialLevel?: number;
   hopperLevel?: number;
   localCallTime?: string;
+  campaignCid?: string;
+  wrapupSeconds?: number;
+  dialTimeout?: number;
+  scheduledCallbacks?: boolean;
+  voicemailExt?: string;
 }
 
 export async function createCampaign(input: CreateCampaignInput): Promise<void> {
@@ -146,6 +160,11 @@ export interface UpdateCampaignInput {
   hopperLevel?: number;
   localCallTime?: string;
   active?: boolean;
+  campaignCid?: string;
+  wrapupSeconds?: number;
+  dialTimeout?: number;
+  scheduledCallbacks?: boolean;
+  voicemailExt?: string;
 }
 
 export async function updateCampaign(campaignId: string, input: UpdateCampaignInput): Promise<void> {
@@ -162,6 +181,68 @@ export async function updateCampaign(campaignId: string, input: UpdateCampaignIn
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
     throw new Error((body as { error?: string }).error ?? `Failed to update campaign (${response.status})`);
+  }
+}
+
+export interface ListEntry {
+  listId: string;
+  listName: string;
+  campaignId: string;
+  active: boolean;
+  listDescription: string;
+  leadCount: number;
+}
+
+export async function fetchLists(campaignId?: string): Promise<ListEntry[]> {
+  const query = campaignId ? `?campaignId=${encodeURIComponent(campaignId)}` : '';
+  return getJson<ListEntry[]>(`/api/lists${query}`);
+}
+
+export interface CreateListInput {
+  listId: string;
+  listName: string;
+  campaignId: string;
+  listDescription?: string;
+}
+
+export async function createList(input: CreateListInput): Promise<void> {
+  if (!API_BASE_URL) throw new Error('VITE_API_BASE_URL is not set.');
+  const token = storedToken();
+  const response = await fetch(`${API_BASE_URL}/api/lists`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error ?? `Failed to create list (${response.status})`);
+  }
+}
+
+export interface UpdateListInput {
+  listName?: string;
+  campaignId?: string;
+  active?: boolean;
+  listDescription?: string;
+}
+
+export async function updateList(listId: string, input: UpdateListInput): Promise<void> {
+  if (!API_BASE_URL) throw new Error('VITE_API_BASE_URL is not set.');
+  const token = storedToken();
+  const response = await fetch(`${API_BASE_URL}/api/lists/${encodeURIComponent(listId)}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error ?? `Failed to update list (${response.status})`);
   }
 }
 

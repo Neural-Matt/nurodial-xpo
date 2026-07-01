@@ -14,12 +14,18 @@ interface CampaignRow {
   auto_dial_level: number | null;
   hopper_level: number | null;
   local_call_time: string | null;
+  campaign_cid: string | null;
+  wrapup_seconds: number | null;
+  dial_timeout: number | null;
+  scheduled_callbacks: 'Y' | 'N' | null;
+  voicemail_ext: string | null;
 }
 
-// Deliberately a subset of VICIdial's 12 dial_method enum values — the rest
-// (SHARED_*, ADAPT_TAPERED, etc.) are advanced tuning modes out of scope for
-// a first pass at campaign management.
-const ALLOWED_DIAL_METHODS = ['MANUAL', 'RATIO', 'ADAPT_HARD_LIMIT', 'INBOUND_MAN'];
+const ALLOWED_DIAL_METHODS = [
+  'MANUAL', 'RATIO', 'ADAPT_HARD_LIMIT', 'ADAPT_TAPERED', 'ADAPT_AVERAGE', 'ADAPT_PERCENTMAX',
+  'INBOUND_MAN', 'SHARED_RATIO', 'SHARED_ADAPT_HARD_LIMIT', 'SHARED_ADAPT_TAPERED',
+  'SHARED_ADAPT_AVERAGE', 'SHARED_ADAPT_PERCENTMAX',
+];
 const CAMPAIGN_ID_PATTERN = /^[A-Za-z0-9_]{2,8}$/;
 
 export const campaignsRouter = Router();
@@ -33,6 +39,11 @@ function toApiCampaign(row: CampaignRow): ApiCampaign {
     autoDialLevel: row.auto_dial_level ?? 0,
     hopperLevel: row.hopper_level ?? 0,
     localCallTime: row.local_call_time ?? '',
+    campaignCid: row.campaign_cid ?? '',
+    wrapupSeconds: row.wrapup_seconds ?? 0,
+    dialTimeout: row.dial_timeout ?? 0,
+    scheduledCallbacks: row.scheduled_callbacks === 'Y',
+    voicemailExt: row.voicemail_ext ?? '',
     // Best-effort derivation — VICIDial doesn't store a "Blended" flag on
     // this table; a campaign with both an inbound group and outbound
     // dialing would need a join against vicidial_inbound_groups to detect.
@@ -44,7 +55,8 @@ function toApiCampaign(row: CampaignRow): ApiCampaign {
 campaignsRouter.get('/', async (_req, res, next) => {
   try {
     const rows = await query<CampaignRow>(
-      `SELECT campaign_id, campaign_name, active, dial_method, auto_dial_level, hopper_level, local_call_time
+      `SELECT campaign_id, campaign_name, active, dial_method, auto_dial_level, hopper_level, local_call_time,
+              campaign_cid, wrapup_seconds, dial_timeout, scheduled_callbacks, voicemail_ext
        FROM vicidial_campaigns
        ORDER BY campaign_name`,
     );
@@ -57,9 +69,14 @@ campaignsRouter.get('/', async (_req, res, next) => {
 // POST /api/campaigns — create a new campaign
 campaignsRouter.post('/', async (req, res, next) => {
   try {
-    const { campaignId, campaignName, dialMethod, autoDialLevel, hopperLevel, localCallTime } = req.body as {
+    const {
+      campaignId, campaignName, dialMethod, autoDialLevel, hopperLevel, localCallTime,
+      campaignCid, wrapupSeconds, dialTimeout, scheduledCallbacks, voicemailExt,
+    } = req.body as {
       campaignId?: string; campaignName?: string; dialMethod?: string;
       autoDialLevel?: number; hopperLevel?: number; localCallTime?: string;
+      campaignCid?: string; wrapupSeconds?: number; dialTimeout?: number;
+      scheduledCallbacks?: boolean; voicemailExt?: string;
     };
 
     if (!campaignId || !campaignName || !dialMethod) {
@@ -82,9 +99,14 @@ campaignsRouter.post('/', async (req, res, next) => {
 
     await writeQuery(
       `INSERT INTO vicidial_campaigns
-         (campaign_id, campaign_name, active, dial_method, auto_dial_level, hopper_level, local_call_time)
-       VALUES (?, ?, 'Y', ?, ?, ?, ?)`,
-      [campaignId, campaignName, dialMethod, autoDialLevel ?? 0, hopperLevel ?? 1, localCallTime || '9am-9pm'],
+         (campaign_id, campaign_name, active, dial_method, auto_dial_level, hopper_level, local_call_time,
+          campaign_cid, wrapup_seconds, dial_timeout, scheduled_callbacks, voicemail_ext)
+       VALUES (?, ?, 'Y', ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+      [
+        campaignId, campaignName, dialMethod, autoDialLevel ?? 0, hopperLevel ?? 1, localCallTime || '9am-9pm',
+        campaignCid || '0000000000', wrapupSeconds ?? 0, dialTimeout ?? 60,
+        scheduledCallbacks ? 'Y' : 'N', voicemailExt || '',
+      ],
     );
 
     res.status(201).json({ ok: true });
@@ -97,9 +119,14 @@ campaignsRouter.post('/', async (req, res, next) => {
 campaignsRouter.patch('/:campaignId', async (req, res, next) => {
   try {
     const { campaignId } = req.params;
-    const { campaignName, dialMethod, autoDialLevel, hopperLevel, localCallTime, active } = req.body as {
+    const {
+      campaignName, dialMethod, autoDialLevel, hopperLevel, localCallTime, active,
+      campaignCid, wrapupSeconds, dialTimeout, scheduledCallbacks, voicemailExt,
+    } = req.body as {
       campaignName?: string; dialMethod?: string; autoDialLevel?: number;
       hopperLevel?: number; localCallTime?: string; active?: boolean;
+      campaignCid?: string; wrapupSeconds?: number; dialTimeout?: number;
+      scheduledCallbacks?: boolean; voicemailExt?: string;
     };
 
     const existing = await query<{ cnt: number }>(
@@ -121,6 +148,11 @@ campaignsRouter.patch('/:campaignId', async (req, res, next) => {
     if (hopperLevel !== undefined) { sets.push('hopper_level = ?'); params.push(hopperLevel); }
     if (localCallTime) { sets.push('local_call_time = ?'); params.push(localCallTime); }
     if (active !== undefined) { sets.push('active = ?'); params.push(active ? 'Y' : 'N'); }
+    if (campaignCid !== undefined) { sets.push('campaign_cid = ?'); params.push(campaignCid); }
+    if (wrapupSeconds !== undefined) { sets.push('wrapup_seconds = ?'); params.push(wrapupSeconds); }
+    if (dialTimeout !== undefined) { sets.push('dial_timeout = ?'); params.push(dialTimeout); }
+    if (scheduledCallbacks !== undefined) { sets.push('scheduled_callbacks = ?'); params.push(scheduledCallbacks ? 'Y' : 'N'); }
+    if (voicemailExt !== undefined) { sets.push('voicemail_ext = ?'); params.push(voicemailExt); }
 
     if (!sets.length) {
       return res.status(400).json({ error: 'No fields to update.' });

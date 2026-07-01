@@ -47,6 +47,10 @@ export interface Campaign {
   dialLevel: number;
   hopperLevel: number;
   localCallTime: string;
+  campaignCid: string;
+  wrapupSeconds: number;
+  scheduledCallbacks: boolean;
+  voicemailExt: string;
   leadOrder: string;
   dialStatuses: string[];
   dialTimeout: number;
