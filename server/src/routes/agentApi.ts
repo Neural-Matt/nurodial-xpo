@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { query } from '../db.js';
 import { writeQuery } from '../writeDb.js';
+import { ami } from '../ami.js';
 
 export interface AgentStatusRow {
   status: 'READY' | 'INCALL' | 'PAUSED' | 'QUEUE' | 'CLOSER' | 'MQUEUE';
@@ -214,8 +215,19 @@ agentApiRouter.post('/login-session', async (req, res, next) => {
   }
 });
 
-// POST /api/agent/action — write external_* flags directly to vicidial_live_agents
-// VICIdial's Asterisk scripts poll these columns to control the live call channel.
+interface LiveAgentRow {
+  extension: string;
+  channel: string;
+  lead_id: number;
+  campaign_id: string;
+  status: string;
+}
+
+// POST /api/agent/action — real-time call control via AMI + direct VICIdial
+// table writes. The external_* columns are NOT used here (see server/README
+// notes / project memory): nothing in VICIdial's backend actually consumes
+// them outside its own native agent screen's AJAX polling, so writing them
+// alone has no telephony effect. This route drives Asterisk directly.
 agentApiRouter.post('/action', async (req, res, next) => {
   try {
     const username = req.jwtUser!.sub;
@@ -225,16 +237,14 @@ agentApiRouter.post('/action', async (req, res, next) => {
       return res.status(400).json({ error: 'function is required.' });
     }
 
-    // Verify agent is logged into VICIdial
-    const agentRows = await query<{ cnt: number }>(
-      'SELECT COUNT(*) AS cnt FROM vicidial_live_agents WHERE user = ?',
+    const agentRows = await query<LiveAgentRow>(
+      'SELECT extension, channel, lead_id, campaign_id, status FROM vicidial_live_agents WHERE user = ?',
       [username],
     );
-    if (!agentRows[0]?.cnt) {
+    if (!agentRows.length) {
       return res.status(404).json({ error: 'Agent is not logged in to VICIdial.' });
     }
-
-    const epoch = Math.floor(Date.now() / 1000);
+    const agent = agentRows[0];
 
     switch (fn) {
       case 'external_pause': {
@@ -243,45 +253,131 @@ agentApiRouter.post('/action', async (req, res, next) => {
           return res.status(400).json({ error: 'external_pause value must be PAUSE or RESUME.' });
         }
         await writeQuery(
-          "UPDATE vicidial_live_agents SET external_pause = ? WHERE user = ?",
-          [`${value}!${epoch}`, username],
+          "UPDATE vicidial_live_agents SET status = ?, last_state_change = NOW() WHERE user = ?",
+          [value === 'RESUME' ? 'READY' : 'PAUSED', username],
         );
         break;
       }
       case 'external_hangup': {
+        if (agent.channel) {
+          await ami.ensureConnected();
+          await ami.sendAction({ Action: 'Hangup', Channel: agent.channel }).catch(() => {});
+        }
         await writeQuery(
-          "UPDATE vicidial_live_agents SET external_hangup = '1' WHERE user = ?",
+          "UPDATE vicidial_live_agents SET status = 'PAUSED', channel = '', last_state_change = NOW() WHERE user = ?",
           [username],
         );
         break;
       }
       case 'external_status': {
+        // Disposition: hang up if still connected, log the call, update the
+        // lead, then return the agent to PAUSED (matches VICIdial's own
+        // convention of requiring an explicit resume after wrapup).
         if (!value) {
           return res.status(400).json({ error: 'external_status requires a value (disposition code).' });
         }
+
+        if (agent.channel) {
+          await ami.ensureConnected();
+          await ami.sendAction({ Action: 'Hangup', Channel: agent.channel }).catch(() => {});
+        }
+
+        if (agent.lead_id > 0) {
+          const leadRows = await query<{ list_id: string; phone_number: string }>(
+            'SELECT list_id, phone_number FROM vicidial_list WHERE lead_id = ? LIMIT 1',
+            [agent.lead_id],
+          );
+          const lead = leadRows[0];
+
+          await writeQuery(
+            "UPDATE vicidial_list SET status = ?, called_count = called_count + 1, last_local_call_time = NOW() WHERE lead_id = ?",
+            [value, agent.lead_id],
+          );
+
+          const uniqueId = `${Date.now()}.${Math.floor(Math.random() * 1000)}`;
+          await writeQuery(
+            `INSERT INTO vicidial_log
+               (uniqueid, lead_id, list_id, campaign_id, call_date, length_in_sec, status, phone_number, user, term_reason)
+             VALUES (?, ?, ?, ?, NOW(), TIMESTAMPDIFF(SECOND, (SELECT last_call_time FROM vicidial_live_agents WHERE user = ?), NOW()), ?, ?, ?, 'AGENT')`,
+            [uniqueId, agent.lead_id, lead?.list_id ?? '0', agent.campaign_id, username, value, lead?.phone_number ?? '', username],
+          );
+        }
+
         await writeQuery(
-          "UPDATE vicidial_live_agents SET external_status = ? WHERE user = ?",
-          [value, username],
+          "UPDATE vicidial_live_agents SET status = 'PAUSED', lead_id = 0, channel = '', calls_today = calls_today + 1, last_state_change = NOW() WHERE user = ?",
+          [username],
         );
         break;
       }
       case 'external_dial': {
-        // value = phone number; stored in external_dial for VICIdial's manual dial processing
         if (!value) {
           return res.status(400).json({ error: 'external_dial requires a phone number value.' });
         }
+        if (agent.status === 'INCALL') {
+          return res.status(409).json({ error: 'Agent is already in a call.' });
+        }
         const phoneDigits = value.replace(/\D/g, '');
+        const { vendor_id: vendorId } = req.body as { vendor_id?: string };
+        const leadId = vendorId && /^[0-9]+$/.test(vendorId) ? Number(vendorId) : 0;
+
+        await ami.ensureConnected();
+        const actionId = `nurodial-dial-${Date.now()}`;
+        const queuedAck = await ami.sendAction({
+          Action: 'Originate',
+          ActionID: actionId,
+          Channel: agent.extension,
+          Exten: phoneDigits,
+          // NOTE: 'default' context has no real outbound trunk configured yet
+          // (see project memory -- MTN SIP trunk pending). This correctly
+          // rings the agent's own phone; connecting to a real external
+          // number will only work once a trunk exists.
+          Context: 'default',
+          Priority: '1',
+          CallerID: `NuroDial <${phoneDigits}>`,
+          Async: 'true',
+        });
+        if (queuedAck.Response !== 'Success') {
+          return res.status(502).json({ error: `Originate rejected: ${queuedAck.Message ?? 'unknown error'}` });
+        }
+
         await writeQuery(
-          "UPDATE vicidial_live_agents SET external_dial = ? WHERE user = ?",
-          [phoneDigits, username],
+          "UPDATE vicidial_live_agents SET status = 'INCALL', lead_id = ?, callerid = ?, comments = 'MANUAL', last_call_time = NOW(), last_state_change = NOW() WHERE user = ?",
+          [leadId, phoneDigits, username],
         );
-        break;
+
+        // Don't block the HTTP response on how the call turns out — the
+        // frontend already polls /api/agent/me every 5s and will pick up
+        // the real state once we learn it below.
+        res.json({ ok: true });
+        ami.waitForEvent('OriginateResponse', (p) => p.ActionID === actionId, 30000)
+          .then(async (event) => {
+            if (event.Response === 'Success' && event.Channel) {
+              await writeQuery(
+                "UPDATE vicidial_live_agents SET channel = ?, uniqueid = ? WHERE user = ?",
+                [event.Channel, event.Uniqueid ?? '', username],
+              );
+            } else {
+              // No answer / busy / failed -- release the agent back to READY.
+              await writeQuery(
+                "UPDATE vicidial_live_agents SET status = 'READY', lead_id = 0, channel = '', last_state_change = NOW() WHERE user = ?",
+                [username],
+              );
+            }
+          })
+          .catch(async () => {
+            await writeQuery(
+              "UPDATE vicidial_live_agents SET status = 'READY', lead_id = 0, channel = '', last_state_change = NOW() WHERE user = ?",
+              [username],
+            ).catch(() => {});
+          });
+        return;
       }
       case 'logout': {
-        await writeQuery(
-          "UPDATE vicidial_live_agents SET external_pause = 'LOGOUT' WHERE user = ?",
-          [username],
-        );
+        if (agent.channel) {
+          await ami.ensureConnected();
+          await ami.sendAction({ Action: 'Hangup', Channel: agent.channel }).catch(() => {});
+        }
+        await writeQuery('DELETE FROM vicidial_live_agents WHERE user = ?', [username]);
         break;
       }
       default:
