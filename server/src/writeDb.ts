@@ -1,14 +1,17 @@
 import mysql, { type ResultSetHeader } from 'mysql2/promise';
+import { config } from './config.js';
 
 // Separate write pool — nurodial_agent has narrowly scoped write grants
-// (external_* columns on vicidial_live_agents; INSERT/UPDATE on
-// vicidial_callbacks). Shared by any route that needs to write.
+// (see project memory for the exact grant list, which has grown table by
+// table as features were added). Shared by any route that needs to write.
+// Sourced from the shared config object (not process.env directly) so
+// credentials are required, not silently defaulted to an empty password.
 export const writePool = mysql.createPool({
-  host: process.env.DB_HOST ?? '127.0.0.1',
-  port: Number(process.env.DB_PORT ?? 3306),
-  user: process.env.DB_AGENT_USER ?? 'nurodial_agent',
-  password: process.env.DB_AGENT_PASS ?? '',
-  database: process.env.DB_NAME ?? 'asterisk',
+  host: config.db.host,
+  port: config.db.port,
+  user: config.dbAgent.user,
+  password: config.dbAgent.password,
+  database: config.db.database,
   waitForConnections: true,
   connectionLimit: 10,
 });

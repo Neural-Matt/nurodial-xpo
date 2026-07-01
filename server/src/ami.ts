@@ -1,16 +1,22 @@
 import net from 'net';
 import { EventEmitter } from 'events';
 import { writeQuery } from './writeDb.js';
+import { requireEnv } from './config.js';
 
 // Minimal purpose-built Asterisk Manager Interface (AMI) client -- plain-text
 // key:value protocol over TCP, terminated by a blank line (\r\n\r\n) per
 // packet. No third-party AMI library is used; the protocol is simple enough
 // that a small, purpose-built client is easier to reason about and keep
 // dependency-free than wrapping an unmaintained npm package.
+//
+// Username/secret must come from the environment, not a source-code
+// fallback: this file is committed to a public git repo, and a hardcoded
+// default is a live credential leak the moment it's pushed (this project's
+// own history has exactly that mistake — see project memory).
 const AMI_HOST = process.env.AMI_HOST ?? '127.0.0.1';
 const AMI_PORT = Number(process.env.AMI_PORT ?? 5038);
-const AMI_USERNAME = process.env.AMI_USERNAME ?? 'cron';
-const AMI_SECRET = process.env.AMI_SECRET ?? '1234';
+const AMI_USERNAME = requireEnv('AMI_USERNAME');
+const AMI_SECRET = requireEnv('AMI_SECRET');
 
 export type AmiPacket = Record<string, string>;
 

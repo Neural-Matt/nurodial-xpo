@@ -1,6 +1,6 @@
 import 'dotenv/config';
 
-function requireEnv(name: string): string {
+export function requireEnv(name: string): string {
   const value = process.env[name];
   if (!value) {
     throw new Error(`Missing required environment variable: ${name}`);
@@ -17,6 +17,12 @@ export const config = {
     user: requireEnv('DB_USER'),
     password: requireEnv('DB_PASS'),
     database: process.env.DB_NAME ?? 'asterisk',
+  },
+  dbAgent: {
+    // Separate write pool credentials — narrowly scoped grants, see
+    // server/src/writeDb.ts and project memory for the exact grant list.
+    user: requireEnv('DB_AGENT_USER'),
+    password: requireEnv('DB_AGENT_PASS'),
   },
   jwt: {
     secret: requireEnv('JWT_SECRET'),
