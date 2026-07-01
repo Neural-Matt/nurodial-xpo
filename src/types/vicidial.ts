@@ -45,6 +45,8 @@ export interface Campaign {
   active: boolean;
   dialMethod: string;
   dialLevel: number;
+  hopperLevel: number;
+  localCallTime: string;
   leadOrder: string;
   dialStatuses: string[];
   dialTimeout: number;

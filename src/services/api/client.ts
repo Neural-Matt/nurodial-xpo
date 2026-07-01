@@ -87,6 +87,8 @@ function toCampaign(row: ApiCampaign): Campaign {
     active: row.active,
     dialMethod: row.dialMethod,
     dialLevel: row.autoDialLevel,
+    hopperLevel: row.hopperLevel,
+    localCallTime: row.localCallTime,
     leadOrder: '',
     dialStatuses: [],
     dialTimeout: 0,
@@ -109,6 +111,58 @@ function toCampaign(row: ApiCampaign): Campaign {
 export async function fetchCampaigns(): Promise<Campaign[]> {
   const rows = await getJson<ApiCampaign[]>('/api/campaigns');
   return rows.map(toCampaign);
+}
+
+export interface CreateCampaignInput {
+  campaignId: string;
+  campaignName: string;
+  dialMethod: string;
+  autoDialLevel?: number;
+  hopperLevel?: number;
+  localCallTime?: string;
+}
+
+export async function createCampaign(input: CreateCampaignInput): Promise<void> {
+  if (!API_BASE_URL) throw new Error('VITE_API_BASE_URL is not set.');
+  const token = storedToken();
+  const response = await fetch(`${API_BASE_URL}/api/campaigns`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error ?? `Failed to create campaign (${response.status})`);
+  }
+}
+
+export interface UpdateCampaignInput {
+  campaignName?: string;
+  dialMethod?: string;
+  autoDialLevel?: number;
+  hopperLevel?: number;
+  localCallTime?: string;
+  active?: boolean;
+}
+
+export async function updateCampaign(campaignId: string, input: UpdateCampaignInput): Promise<void> {
+  if (!API_BASE_URL) throw new Error('VITE_API_BASE_URL is not set.');
+  const token = storedToken();
+  const response = await fetch(`${API_BASE_URL}/api/campaigns/${encodeURIComponent(campaignId)}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error ?? `Failed to update campaign (${response.status})`);
+  }
 }
 
 export async function fetchLeads(campaignId?: string): Promise<Lead[]> {

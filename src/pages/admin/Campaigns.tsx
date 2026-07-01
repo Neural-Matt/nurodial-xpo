@@ -1,7 +1,8 @@
 import { useState } from 'react';
 import {
   Box, Grid, Button, Table, TableHead, TableRow, TableCell, TableBody,
-  Stack, Chip, Typography, CircularProgress, Alert,
+  Stack, Chip, Typography, CircularProgress, Alert, Dialog, DialogTitle,
+  DialogContent, DialogActions, TextField, MenuItem, Select, InputLabel, FormControl,
 } from '@mui/material';
 import AddOutlined from '@mui/icons-material/AddOutlined';
 import CampaignOutlined from '@mui/icons-material/CampaignOutlined';
@@ -11,25 +12,191 @@ import { PageHeader } from '../../components/common/PageHeader';
 import { KpiCard } from '../../components/common/KpiCard';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { DetailDrawer } from '../../components/common/DetailDrawer';
-import { fetchCampaigns } from '../../services/api/client';
+import { fetchCampaigns, createCampaign, updateCampaign } from '../../services/api/client';
 import { useApiData } from '../../hooks/useApiData';
 import type { Campaign } from '../../types/vicidial';
 
+// Deliberately a subset of VICIdial's 12 dial_method values — matches the
+// backend's ALLOWED_DIAL_METHODS restriction.
+const DIAL_METHODS = ['MANUAL', 'RATIO', 'ADAPT_HARD_LIMIT', 'INBOUND_MAN'];
+const CAMPAIGN_ID_PATTERN = /^[A-Za-z0-9_]{2,8}$/;
+
+interface CampaignFormState {
+  campaignId: string;
+  campaignName: string;
+  dialMethod: string;
+  autoDialLevel: string;
+  hopperLevel: string;
+  localCallTime: string;
+}
+
+function emptyForm(): CampaignFormState {
+  return { campaignId: '', campaignName: '', dialMethod: 'MANUAL', autoDialLevel: '0', hopperLevel: '1', localCallTime: '9am-9pm' };
+}
+
+function campaignToForm(campaign: Campaign): CampaignFormState {
+  return {
+    campaignId: campaign.campaignId,
+    campaignName: campaign.campaignName,
+    dialMethod: campaign.dialMethod,
+    autoDialLevel: String(campaign.dialLevel),
+    hopperLevel: String(campaign.hopperLevel),
+    localCallTime: campaign.localCallTime,
+  };
+}
+
+interface CampaignFormDialogProps {
+  open: boolean;
+  mode: 'create' | 'edit';
+  initial: CampaignFormState;
+  onClose: () => void;
+  onSave: (form: CampaignFormState) => Promise<void>;
+}
+
+function CampaignFormDialog({ open, mode, initial, onClose, onSave }: CampaignFormDialogProps) {
+  const [form, setForm] = useState(initial);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const canSave = mode === 'create'
+    ? CAMPAIGN_ID_PATTERN.test(form.campaignId.trim()) && form.campaignName.trim().length > 0
+    : form.campaignName.trim().length > 0;
+
+  const handleSave = async () => {
+    setSaving(true);
+    setError(null);
+    try {
+      await onSave(form);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save campaign.');
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  return (
+    <Dialog open={open} onClose={onClose} maxWidth="xs" fullWidth>
+      <DialogTitle>{mode === 'create' ? 'New Campaign' : `Edit ${initial.campaignId}`}</DialogTitle>
+      <DialogContent>
+        <Stack spacing={2} sx={{ mt: 1 }}>
+          {error && <Alert severity="error">{error}</Alert>}
+          <TextField
+            label="Campaign ID"
+            value={form.campaignId}
+            onChange={(e) => setForm({ ...form, campaignId: e.target.value.toUpperCase() })}
+            disabled={mode === 'edit'}
+            helperText={mode === 'create' ? '2-8 characters, letters/numbers/underscore' : undefined}
+            fullWidth
+            size="small"
+          />
+          <TextField
+            label="Campaign Name"
+            value={form.campaignName}
+            onChange={(e) => setForm({ ...form, campaignName: e.target.value })}
+            fullWidth
+            size="small"
+          />
+          <FormControl size="small" fullWidth>
+            <InputLabel>Dial Method</InputLabel>
+            <Select
+              label="Dial Method"
+              value={form.dialMethod}
+              onChange={(e) => setForm({ ...form, dialMethod: e.target.value })}
+            >
+              {DIAL_METHODS.map((method) => <MenuItem key={method} value={method}>{method}</MenuItem>)}
+            </Select>
+          </FormControl>
+          <TextField
+            label="Auto Dial Level"
+            type="number"
+            value={form.autoDialLevel}
+            onChange={(e) => setForm({ ...form, autoDialLevel: e.target.value })}
+            fullWidth
+            size="small"
+          />
+          <TextField
+            label="Hopper Level"
+            type="number"
+            value={form.hopperLevel}
+            onChange={(e) => setForm({ ...form, hopperLevel: e.target.value })}
+            fullWidth
+            size="small"
+          />
+          <TextField
+            label="Call Hours"
+            value={form.localCallTime}
+            onChange={(e) => setForm({ ...form, localCallTime: e.target.value })}
+            placeholder="9am-9pm"
+            fullWidth
+            size="small"
+          />
+        </Stack>
+      </DialogContent>
+      <DialogActions sx={{ px: 3, pb: 2 }}>
+        <Button onClick={onClose}>Cancel</Button>
+        <Button variant="contained" disabled={!canSave || saving} onClick={() => { void handleSave(); }}>
+          {saving ? 'Saving…' : 'Save'}
+        </Button>
+      </DialogActions>
+    </Dialog>
+  );
+}
+
 export function Campaigns() {
-  const { data: campaigns, loading, error } = useApiData(fetchCampaigns);
+  const { data: campaigns, loading, error, reload } = useApiData(fetchCampaigns);
   const [selected, setSelected] = useState<Campaign | null>(null);
   const [activeTab, setActiveTab] = useState(0);
+  const [dialogMode, setDialogMode] = useState<'create' | 'edit' | null>(null);
+  const [togglingActive, setTogglingActive] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const list = campaigns ?? [];
   const activeCount = list.filter((c) => c.active).length;
   const pausedCount = list.filter((c) => !c.active).length;
+
+  const handleToggleActive = async () => {
+    if (!selected) return;
+    setTogglingActive(true);
+    setActionError(null);
+    try {
+      await updateCampaign(selected.campaignId, { active: !selected.active });
+      reload();
+      setSelected(null);
+    } catch (err) {
+      setActionError(err instanceof Error ? err.message : 'Failed to update campaign.');
+    } finally {
+      setTogglingActive(false);
+    }
+  };
+
+  const handleDialogSave = async (form: CampaignFormState) => {
+    const payload = {
+      campaignName: form.campaignName.trim(),
+      dialMethod: form.dialMethod,
+      autoDialLevel: Number(form.autoDialLevel) || 0,
+      hopperLevel: Number(form.hopperLevel) || 0,
+      localCallTime: form.localCallTime.trim(),
+    };
+    if (dialogMode === 'create') {
+      await createCampaign({ campaignId: form.campaignId.trim(), ...payload });
+    } else if (selected) {
+      await updateCampaign(selected.campaignId, payload);
+    }
+    setDialogMode(null);
+    setSelected(null);
+    reload();
+  };
 
   return (
     <Box>
       <PageHeader
         title="Blended Campaign"
         subtitle="View and manage inbound/outbound campaigns configured in VICIdial."
-        actions={<Button variant="contained" startIcon={<AddOutlined />}>New Campaign</Button>}
+        actions={
+          <Button variant="contained" startIcon={<AddOutlined />} onClick={() => setDialogMode('create')}>
+            New Campaign
+          </Button>
+        }
       />
 
       <Grid container spacing={2} sx={{ mb: 3 }}>
@@ -45,6 +212,7 @@ export function Campaigns() {
       </Grid>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {actionError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setActionError(null)}>{actionError}</Alert>}
 
       <Box sx={{ bgcolor: 'background.paper', borderRadius: 2, border: '1px solid rgba(0,0,0,0.08)', overflowX: 'auto' }}>
         {loading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}
@@ -79,8 +247,8 @@ export function Campaigns() {
                   <TableCell>{campaign.type}</TableCell>
                   <TableCell>{campaign.dialMethod}</TableCell>
                   <TableCell>{campaign.dialLevel}</TableCell>
-                  <TableCell>{campaign.leadsLoaded}</TableCell>
-                  <TableCell>{campaign.leadOrder || '—'}</TableCell>
+                  <TableCell>{campaign.hopperLevel}</TableCell>
+                  <TableCell>{campaign.localCallTime || '—'}</TableCell>
                 </TableRow>
               ))}
               {list.length === 0 && (
@@ -94,6 +262,16 @@ export function Campaigns() {
           </Table>
         )}
       </Box>
+
+      {dialogMode && (
+        <CampaignFormDialog
+          open
+          mode={dialogMode}
+          initial={dialogMode === 'edit' && selected ? campaignToForm(selected) : emptyForm()}
+          onClose={() => setDialogMode(null)}
+          onSave={handleDialogSave}
+        />
+      )}
 
       {selected && (
         <DetailDrawer
@@ -118,6 +296,8 @@ export function Campaigns() {
                   {([
                     ['Dial Method', selected.dialMethod],
                     ['Dial Level', selected.dialLevel],
+                    ['Hopper Level', selected.hopperLevel],
+                    ['Call Hours', selected.localCallTime || '—'],
                     ['Type', selected.type],
                     ['Status', selected.status],
                   ] as const).map(([label, value]) => (
@@ -140,8 +320,10 @@ export function Campaigns() {
           ]}
           footer={
             <>
-              <Button variant="outlined">{selected.active ? 'Pause Campaign' : 'Resume Campaign'}</Button>
-              <Button variant="contained">Edit Campaign</Button>
+              <Button variant="outlined" disabled={togglingActive} onClick={() => { void handleToggleActive(); }}>
+                {togglingActive ? 'Saving…' : selected.active ? 'Pause Campaign' : 'Resume Campaign'}
+              </Button>
+              <Button variant="contained" onClick={() => setDialogMode('edit')}>Edit Campaign</Button>
             </>
           }
         />
