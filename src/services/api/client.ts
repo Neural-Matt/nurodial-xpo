@@ -251,6 +251,41 @@ export async function fetchLeads(campaignId?: string): Promise<Lead[]> {
   return getJson<Lead[]>(`/api/leads${query}`);
 }
 
+export interface ImportLeadRow {
+  phoneNumber: string;
+  firstName?: string;
+  lastName?: string;
+  email?: string;
+  city?: string;
+  province?: string;
+  address?: string;
+  vendorLeadCode?: string;
+  sourceId?: string;
+}
+
+export interface ImportLeadsResult {
+  imported: number;
+  failed: { row: number; phoneNumber: string; reason: string }[];
+}
+
+export async function importLeads(listId: string, rows: ImportLeadRow[]): Promise<ImportLeadsResult> {
+  if (!API_BASE_URL) throw new Error('VITE_API_BASE_URL is not set.');
+  const token = storedToken();
+  const response = await fetch(`${API_BASE_URL}/api/leads/import`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ listId, rows }),
+  });
+  const body = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error((body as { error?: string }).error ?? `Failed to import leads (${response.status})`);
+  }
+  return body as ImportLeadsResult;
+}
+
 interface ApiDisposition {
   statusCode: string;
   label: string;

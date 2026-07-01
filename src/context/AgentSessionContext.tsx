@@ -200,11 +200,12 @@ export function AgentSessionProvider({ children }: { children: ReactNode }) {
   const startCall = useCallback(async (lead: Lead, mode: CallMode, direction: CallDirection = 'outbound') => {
     if (isApiConfigured() && direction === 'outbound') {
       try {
+        // The backend composes the real dial string itself: for a selected
+        // lead (vendor_id present) it authoritatively looks up phone_code +
+        // phone_number from vicidial_list rather than trusting anything sent
+        // here, so lead.phoneNumber only matters as a fallback for ad-hoc
+        // (non-lead) dials -- see agentApi.ts's external_dial handler.
         await agentAction('external_dial', lead.phoneNumber.replace(/\D/g, ''), {
-          phone_code: lead.phoneCode || '1',
-          search: 'Y',
-          preview: mode === 'preview' ? 'Y' : 'N',
-          focus: 'Y',
           ...(lead.leadId && !lead.leadId.startsWith('AD-HOC')
             ? { vendor_id: lead.leadId }
             : {}),

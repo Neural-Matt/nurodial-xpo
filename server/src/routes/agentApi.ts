@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { query } from '../db.js';
 import { writeQuery } from '../writeDb.js';
 import { ami } from '../ami.js';
+import { normalizeZambianPhone } from '../phoneNormalize.js';
 
 export interface AgentStatusRow {
   status: 'READY' | 'INCALL' | 'PAUSED' | 'QUEUE' | 'CLOSER' | 'MQUEUE';
@@ -375,9 +376,32 @@ agentApiRouter.post('/action', async (req, res, next) => {
         if (agent.status === 'INCALL') {
           return res.status(409).json({ error: 'Agent is already in a call.' });
         }
-        const phoneDigits = value.replace(/\D/g, '');
         const { vendor_id: vendorId } = req.body as { vendor_id?: string };
         const leadId = vendorId && /^[0-9]+$/.test(vendorId) ? Number(vendorId) : 0;
+
+        // Build the actual dial string as phone_code + phone_number, matching
+        // VICIdial's own convention (see AST_VDauto_dial.pl's dial-string
+        // builder) rather than dialing whatever raw digits the client sent --
+        // for a selected lead, the lead's own DB row is authoritative (it's
+        // already been through normalizeZambianPhone() at import time), not
+        // whatever phoneCode the frontend happened to attach to the request.
+        let dialString: string;
+        if (leadId > 0) {
+          const leadRows = await query<{ phone_code: string | null; phone_number: string }>(
+            'SELECT phone_code, phone_number FROM vicidial_list WHERE lead_id = ? LIMIT 1',
+            [leadId],
+          );
+          const lead = leadRows[0];
+          dialString = `${lead?.phone_code ?? ''}${lead?.phone_number ?? value.replace(/\D/g, '')}`;
+        } else {
+          // Ad-hoc manual dial of a typed number (no lead attached). Try
+          // Zambian normalization first; fall back to the raw digits
+          // unchanged for anything that doesn't resolve (e.g. dialing a
+          // short internal test extension like 8307, which isn't and
+          // shouldn't be treated as a malformed phone number).
+          const normalized = normalizeZambianPhone(value);
+          dialString = normalized ? `${normalized.phoneCode}${normalized.phoneNumber}` : value.replace(/\D/g, '');
+        }
 
         await ami.ensureConnected();
         const actionId = `nurodial-dial-${Date.now()}`;
@@ -385,14 +409,14 @@ agentApiRouter.post('/action', async (req, res, next) => {
           Action: 'Originate',
           ActionID: actionId,
           Channel: agent.extension,
-          Exten: phoneDigits,
+          Exten: dialString,
           // NOTE: 'default' context has no real outbound trunk configured yet
           // (see project memory -- MTN SIP trunk pending). This correctly
           // rings the agent's own phone; connecting to a real external
           // number will only work once a trunk exists.
           Context: 'default',
           Priority: '1',
-          CallerID: `NuroDial <${phoneDigits}>`,
+          CallerID: `NuroDial <${dialString}>`,
           Async: 'true',
         });
         if (queuedAck.Response !== 'Success') {
@@ -401,7 +425,7 @@ agentApiRouter.post('/action', async (req, res, next) => {
 
         await writeQuery(
           "UPDATE vicidial_live_agents SET status = 'INCALL', lead_id = ?, callerid = ?, comments = 'MANUAL', last_call_time = NOW(), last_state_change = NOW() WHERE user = ?",
-          [leadId, phoneDigits, username],
+          [leadId, dialString, username],
         );
 
         // Don't block the HTTP response on how the call turns out — the
