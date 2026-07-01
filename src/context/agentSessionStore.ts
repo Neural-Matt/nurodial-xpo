@@ -56,8 +56,12 @@ export interface AgentSessionContextValue {
   currentCampaignId: string | null;
   availability: AvailabilityStatus;
   activeCall: ActiveCall | null;
+  // Whether the agent currently has a real vicidial_live_agents row. Null
+  // until the first poll resolves (API not configured, or not checked yet).
+  hasViciSession: boolean | null;
   setCampaign: (campaignId: string) => void;
   setAvailability: (status: AvailabilityStatus) => Promise<void>;
+  startViciSession: (campaignId: string, extension: string) => Promise<void>;
   startCall: (lead: Lead, mode: CallMode, direction?: CallDirection) => Promise<void> | void;
   advanceCallStatus: (status: CallStatus) => void;
   endCall: () => Promise<void> | void;

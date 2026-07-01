@@ -4,6 +4,7 @@ import { useAuth } from './useAuth';
 import {
   fetchMyAgentStatus,
   agentAction,
+  startAgentLoginSession,
   isApiConfigured,
   type MyAgentStatus,
   type AgentLead,
@@ -75,6 +76,7 @@ export function AgentSessionProvider({ children }: { children: ReactNode }) {
     return readAgentSession(user.username)?.availability ?? 'Available';
   });
   const [activeCall, setActiveCall] = useState<ActiveCall | null>(null);
+  const [hasViciSession, setHasViciSession] = useState<boolean | null>(null);
 
   // Track the lead id currently displayed so polling doesn't restart the timer on every tick
   const activeLeadIdRef = useRef<string | null>(null);
@@ -102,6 +104,7 @@ export function AgentSessionProvider({ children }: { children: ReactNode }) {
 
       fetchMyAgentStatus()
         .then((s) => {
+          setHasViciSession(true);
           // Sync campaign if VICIdial tells us the agent is in a different one
           if (s.campaignId && s.campaignId !== currentCampaignIdRef.current) {
             setCurrentCampaignId(s.campaignId);
@@ -143,6 +146,7 @@ export function AgentSessionProvider({ children }: { children: ReactNode }) {
         })
         .catch(() => {
           // 404 = not logged into VICIdial — dialer shows its own banner
+          setHasViciSession(false);
         })
         .finally(() => {
           pollInFlightRef.current = false;
@@ -186,6 +190,12 @@ export function AgentSessionProvider({ children }: { children: ReactNode }) {
     },
     [currentCampaignId, logout, navigate, persist],
   );
+
+  const startViciSession = useCallback(async (campaignId: string, extension: string) => {
+    await startAgentLoginSession(campaignId, extension);
+    setHasViciSession(true);
+    setCampaign(campaignId);
+  }, [setCampaign]);
 
   const startCall = useCallback(async (lead: Lead, mode: CallMode, direction: CallDirection = 'outbound') => {
     if (isApiConfigured() && direction === 'outbound') {
@@ -248,8 +258,10 @@ export function AgentSessionProvider({ children }: { children: ReactNode }) {
       currentCampaignId,
       availability,
       activeCall,
+      hasViciSession,
       setCampaign,
       setAvailability,
+      startViciSession,
       startCall,
       advanceCallStatus,
       endCall,
@@ -259,8 +271,10 @@ export function AgentSessionProvider({ children }: { children: ReactNode }) {
       currentCampaignId,
       availability,
       activeCall,
+      hasViciSession,
       setCampaign,
       setAvailability,
+      startViciSession,
       startCall,
       advanceCallStatus,
       endCall,

@@ -24,7 +24,30 @@ export interface AgentStatusRow {
   source_id: string | null;
 }
 
+interface PhoneRow {
+  extension: string;
+  protocol: string;
+  server_ip: string;
+  phone_ring_timeout: number;
+  on_hook_agent: 'Y' | 'N';
+}
+
 export const agentApiRouter = Router();
+
+// GET /api/agent/phones — active phone extensions the agent can log in on
+agentApiRouter.get('/phones', async (_req, res, next) => {
+  try {
+    // EXTERNAL-protocol rows (e.g. 'callin') are system extensions, not
+    // agent-usable phones — exclude them from the login picker.
+    const rows = await query<PhoneRow>(
+      `SELECT extension, protocol, server_ip, phone_ring_timeout, on_hook_agent
+       FROM phones WHERE active = 'Y' AND protocol != 'EXTERNAL' ORDER BY extension`,
+    );
+    res.json(rows.map((r) => ({ extension: r.extension, protocol: r.protocol })));
+  } catch (err) {
+    next(err);
+  }
+});
 
 // GET /api/agent/me — return agent's current live state + lead info
 agentApiRouter.get('/me', async (req, res, next) => {
@@ -90,6 +113,102 @@ agentApiRouter.get('/me', async (req, res, next) => {
           }
         : null,
     });
+  } catch (err) {
+    next(err);
+  }
+});
+
+// POST /api/agent/login-session — create the agent's vicidial_live_agents row,
+// replicating VICIdial's own MANUAL-dial login path (agc/vicidial.php). Scoped
+// to MANUAL-dial campaigns only: those skip VICIdial's conference-room
+// reservation and login-time Originate entirely, so conf_exten is left ''
+// and no vicidial_manager job is queued — matching what VICIdial itself does
+// for this campaign type.
+agentApiRouter.post('/login-session', async (req, res, next) => {
+  try {
+    const username = req.jwtUser!.sub;
+    const { campaignId, extension } = req.body as { campaignId?: string; extension?: string };
+
+    if (!campaignId || !extension) {
+      return res.status(400).json({ error: 'campaignId and extension are required.' });
+    }
+
+    const campaignRows = await query<{ dial_method: string }>(
+      `SELECT dial_method FROM vicidial_campaigns WHERE campaign_id = ? AND active = 'Y' LIMIT 1`,
+      [campaignId],
+    );
+    if (!campaignRows.length) {
+      return res.status(400).json({ error: `Campaign "${campaignId}" is not active.` });
+    }
+    if (campaignRows[0].dial_method !== 'MANUAL') {
+      return res.status(400).json({
+        error: 'Agent login is only supported for MANUAL dial campaigns right now.',
+      });
+    }
+
+    const phoneRows = await query<PhoneRow>(
+      `SELECT extension, protocol, server_ip, phone_ring_timeout, on_hook_agent
+       FROM phones WHERE extension = ? AND active = 'Y' LIMIT 1`,
+      [extension],
+    );
+    if (!phoneRows.length) {
+      return res.status(400).json({ error: `Phone extension "${extension}" is not active.` });
+    }
+    const phone = phoneRows[0];
+
+    const userRows = await query<{ user_level: number }>(
+      `SELECT user_level FROM vicidial_users WHERE user = ? AND active = 'Y' LIMIT 1`,
+      [username],
+    );
+    if (!userRows.length) {
+      return res.status(404).json({ error: 'User not found or inactive.' });
+    }
+    const userLevel = userRows[0].user_level;
+
+    const campaignAgentRows = await query<{
+      campaign_weight: number;
+      calls_today: number;
+      campaign_grade: number;
+    }>(
+      `SELECT campaign_weight, calls_today, campaign_grade FROM vicidial_campaign_agents
+       WHERE user = ? AND campaign_id = ? LIMIT 1`,
+      [username, campaignId],
+    );
+
+    let campaignWeight = 0;
+    let callsToday = 0;
+    let campaignGrade = 1;
+    if (campaignAgentRows.length) {
+      ({ campaign_weight: campaignWeight, calls_today: callsToday, campaign_grade: campaignGrade } = campaignAgentRows[0]);
+    } else {
+      await writeQuery(
+        `INSERT INTO vicidial_campaign_agents (user, campaign_id, campaign_rank, campaign_weight, calls_today, campaign_grade)
+         VALUES (?, ?, 0, 0, 0, 1)`,
+        [username, campaignId],
+      );
+    }
+
+    const sipUser = `${phone.protocol}/${phone.extension}`;
+    const randomId = Math.floor(Math.random() * 90000000) + 10000000;
+
+    // Other VICIdial scripts assume exactly one vicidial_live_agents row per
+    // user; clear any stale row (e.g. from a crashed session) before inserting.
+    await writeQuery('DELETE FROM vicidial_live_agents WHERE user = ?', [username]);
+
+    await writeQuery(
+      `INSERT INTO vicidial_live_agents
+         (user, server_ip, conf_exten, extension, status, lead_id, campaign_id, uniqueid, callerid, channel,
+          random_id, last_call_time, last_update_time, last_call_finish, user_level, campaign_weight, calls_today,
+          last_state_change, outbound_autodial, manager_ingroup_set, on_hook_ring_time, on_hook_agent, campaign_grade,
+          last_inbound_call_time_filtered, last_inbound_call_finish_filtered)
+       VALUES (?, ?, '', ?, 'PAUSED', '', ?, '', '', '', ?, NOW(), NOW(), NOW(), ?, ?, ?, NOW(), 'N', 'N', ?, ?, ?, NOW(), NOW())`,
+      [
+        username, phone.server_ip, sipUser, campaignId, randomId,
+        userLevel, campaignWeight, callsToday, phone.phone_ring_timeout, phone.on_hook_agent, campaignGrade,
+      ],
+    );
+
+    res.status(201).json({ ok: true });
   } catch (err) {
     next(err);
   }

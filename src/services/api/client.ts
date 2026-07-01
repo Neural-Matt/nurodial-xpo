@@ -261,6 +261,32 @@ export async function agentAction(
   }
 }
 
+export interface AgentPhone {
+  extension: string;
+  protocol: string;
+}
+
+export async function fetchAgentPhones(): Promise<AgentPhone[]> {
+  return getJson<AgentPhone[]>('/api/agent/phones');
+}
+
+export async function startAgentLoginSession(campaignId: string, extension: string): Promise<void> {
+  if (!API_BASE_URL) throw new Error('VITE_API_BASE_URL is not set.');
+  const token = storedToken();
+  const response = await fetch(`${API_BASE_URL}/api/agent/login-session`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({ campaignId, extension }),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error ?? `Failed to start session (${response.status})`);
+  }
+}
+
 export async function fetchUsers(): Promise<AppUserApi[]> {
   const rows = await getJson<ApiUser[]>('/api/users');
   return rows.map((row) => ({
