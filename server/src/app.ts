@@ -16,6 +16,7 @@ import { callLogRouter } from './routes/callLog.js';
 import { listsRouter } from './routes/lists.js';
 import { dncRouter } from './routes/dnc.js';
 import { supervisorApiRouter } from './routes/supervisorApi.js';
+import { analyticsRouter } from './routes/analytics.js';
 
 export const app = express();
 
@@ -42,6 +43,7 @@ app.use('/api/call-log', callLogRouter);
 app.use('/api/lists', listsRouter);
 app.use('/api/dnc', dncRouter);
 app.use('/api/supervisor', supervisorApiRouter);
+app.use('/api/analytics', analyticsRouter);
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);

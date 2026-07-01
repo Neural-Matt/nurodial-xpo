@@ -348,6 +348,66 @@ export async function fetchDashboardStats(): Promise<DashboardStats> {
   return getJson<DashboardStats>('/api/dashboard-stats');
 }
 
+export interface AnalyticsKpis {
+  totalCalls: number;
+  answeredCalls: number;
+  avgHandleSec: number;
+  contactRatePct: number;
+  conversionRatePct: number;
+  abandonedCalls: number;
+}
+
+export interface AnalyticsTrend {
+  dates: string[];
+  totalCalls: number[];
+  answeredCalls: number[];
+  abandonedCalls: number[];
+}
+
+export interface AnalyticsTopCampaign {
+  rank: number;
+  campaignId: string;
+  campaignName: string;
+  callsHandled: number;
+  delta: string;
+}
+
+export interface AnalyticsAgentRow {
+  user: string;
+  fullName: string;
+  team: string;
+  role: 'Administrator' | 'Supervisor' | 'Agent';
+  callsHandled: number;
+  activeDays: number;
+  talkTimeSec: number;
+  conversions: number;
+  lastLogin: string | null;
+  active: boolean;
+}
+
+export interface AnalyticsResponse {
+  kpis: AnalyticsKpis;
+  trend: AnalyticsTrend;
+  heatmap: { data: number[][] };
+  topCampaigns: AnalyticsTopCampaign[];
+  agentPerformance: AnalyticsAgentRow[];
+}
+
+export interface AnalyticsParams {
+  startDate?: string;
+  endDate?: string;
+  campaignId?: string;
+}
+
+export async function fetchAnalytics(params: AnalyticsParams = {}): Promise<AnalyticsResponse> {
+  const qs = new URLSearchParams();
+  if (params.startDate) qs.set('startDate', params.startDate);
+  if (params.endDate) qs.set('endDate', params.endDate);
+  if (params.campaignId) qs.set('campaignId', params.campaignId);
+  const query = qs.toString();
+  return getJson<AnalyticsResponse>(`/api/analytics${query ? `?${query}` : ''}`);
+}
+
 export interface AgentLead {
   leadId: string;
   listId: string;
