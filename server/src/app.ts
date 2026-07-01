@@ -11,6 +11,7 @@ import { liveAgentsRouter } from './routes/liveAgents.js';
 import { agentStatsRouter } from './routes/agentStats.js';
 import { dashboardStatsRouter } from './routes/dashboardStats.js';
 import { agentApiRouter } from './routes/agentApi.js';
+import { callbacksRouter } from './routes/callbacks.js';
 
 export const app = express();
 
@@ -32,6 +33,7 @@ app.use('/api/live-agents', liveAgentsRouter);
 app.use('/api/agent-stats', agentStatsRouter);
 app.use('/api/dashboard-stats', dashboardStatsRouter);
 app.use('/api/agent', agentApiRouter);
+app.use('/api/callbacks', callbacksRouter);
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);

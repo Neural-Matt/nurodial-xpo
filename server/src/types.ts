@@ -96,3 +96,17 @@ export interface ApiLiveAgent {
   extension: string;
   callerId: string;
 }
+
+export interface ApiCallback {
+  callbackId: string;
+  leadId: string;
+  listId: string;
+  campaignId: string;
+  callbackTime: string;
+  user: string;
+  recipient: 'USERONLY' | 'ANYONE';
+  comments: string;
+  phoneNumber: string;
+  firstName: string;
+  lastName: string;
+}

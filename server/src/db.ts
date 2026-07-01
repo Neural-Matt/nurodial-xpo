@@ -13,6 +13,12 @@ export const pool = mysql.createPool({
   database: config.db.database,
   waitForConnections: true,
   connectionLimit: 10,
+  // Without this, mysql2 returns DATETIME/TIMESTAMP columns as JS Date
+  // objects, which JSON.stringify renders as UTC-suffixed ISO strings —
+  // silently shifting VICIdial's local wall-clock times by the server's
+  // UTC offset. Every route interface already types these columns as
+  // plain strings, so keep them as the raw 'YYYY-MM-DD HH:mm:ss' text.
+  dateStrings: true,
 });
 
 export async function query<T>(sql: string, params: unknown[] = []): Promise<T[]> {

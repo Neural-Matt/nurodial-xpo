@@ -10,11 +10,13 @@ import { GlobalSettings } from '../pages/admin/GlobalSettings';
 import { Dialer } from '../pages/agent/Dialer';
 import { CampaignSelection } from '../pages/agent/CampaignSelection';
 import { AvailabilityStatus } from '../pages/agent/AvailabilityStatus';
+import { Callback as AgentCallback } from '../pages/agent/Callback';
 import { LiveMonitoring } from '../pages/supervisor/LiveMonitoring';
 import { AgentMonitoring } from '../pages/supervisor/AgentMonitoring';
 import { UserManagement } from '../pages/supervisor/UserManagement';
 import { LeadLists } from '../pages/supervisor/LeadLists';
 import { AnalyticsDashboard } from '../pages/supervisor/AnalyticsDashboard';
+import { Callback as SupervisorCallback } from '../pages/supervisor/Callback';
 
 // Every built page must be registered here under the exact path it's wired to
 // in navConfig.ts. Any nav leaf path not listed here renders ComingSoonPage.
@@ -28,10 +30,12 @@ const builtPages: Record<string, ComponentType> = {
   '/supervisor/monitor/agents': AgentMonitoring,
   '/supervisor/manage/users': UserManagement,
   '/supervisor/manage/leads': LeadLists,
+  '/supervisor/manage/callback': SupervisorCallback,
   '/supervisor/reports/list': AnalyticsDashboard,
   '/agent/home/dialer': Dialer,
   '/agent/home/campaign-selection': CampaignSelection,
   '/agent/home/availability': AvailabilityStatus,
+  '/agent/home/callback': AgentCallback,
 };
 
 export function buildRoutes(): ReactElement[] {

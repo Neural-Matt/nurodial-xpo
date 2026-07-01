@@ -37,7 +37,7 @@ import { callScripts, defaultCallScript } from '../../services/mock/scripts';
 import { knowledgeArticles, type TimelineEvent } from '../../services/mock/agentInteraction';
 import { useApiData } from '../../hooks/useApiData';
 import {
-  fetchCampaigns, fetchLeads, fetchDispositions, isApiConfigured,
+  fetchCampaigns, fetchLeads, fetchDispositions, isApiConfigured, createCallback,
 } from '../../services/api/client';
 import type { Lead } from '../../types/vicidial';
 import { colors } from '../../theme/palette';
@@ -246,6 +246,15 @@ export function Dialer() {
     setDispositionSaving(true);
     setDispositionError(null);
     try {
+      if (selectedDisposition.requiresCallback && callbackTime && isApiConfigured()) {
+        await createCallback({
+          leadId: activeCall.lead.leadId,
+          listId: activeCall.lead.listId,
+          campaignId: activeCall.campaignId,
+          callbackTime: callbackTime.format('YYYY-MM-DD HH:mm:ss'),
+          comments: dispositionNotes,
+        });
+      }
       await submitDisposition(selectedDisposition.statusCode);
     } catch (err) {
       setDispositionError(err instanceof Error ? err.message : 'Failed to save disposition.');

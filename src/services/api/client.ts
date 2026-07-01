@@ -130,7 +130,10 @@ function toDisposition(row: ApiDisposition): Disposition {
     statusCode: row.statusCode,
     label: row.label,
     category: row.sale ? 'Sale' : row.dnc ? 'Compliance' : 'Contact',
-    requiresCallback: false,
+    // VICIdial has no native "requires callback" flag on vicidial_statuses;
+    // CALLBK is the one status where a callback time is a first-class part
+    // of the disposition, so we treat it as the single requiresCallback case.
+    requiresCallback: row.statusCode === 'CALLBK',
     requiresNotes: false,
     isSale: row.sale,
     isDnc: row.dnc,
@@ -269,4 +272,65 @@ export async function fetchUsers(): Promise<AppUserApi[]> {
     status: row.status,
     lastLogin: '',
   }));
+}
+
+export interface ScheduledCallback {
+  callbackId: string;
+  leadId: string;
+  listId: string;
+  campaignId: string;
+  callbackTime: string;
+  user: string;
+  recipient: 'USERONLY' | 'ANYONE';
+  comments: string;
+  phoneNumber: string;
+  firstName: string;
+  lastName: string;
+}
+
+export async function fetchCallbacks(): Promise<ScheduledCallback[]> {
+  return getJson<ScheduledCallback[]>('/api/callbacks');
+}
+
+export interface CreateCallbackInput {
+  leadId: string;
+  listId?: string;
+  campaignId: string;
+  callbackTime: string;
+  comments?: string;
+  recipient?: 'USERONLY' | 'ANYONE';
+}
+
+export async function createCallback(input: CreateCallbackInput): Promise<void> {
+  if (!API_BASE_URL) throw new Error('VITE_API_BASE_URL is not set.');
+  const token = storedToken();
+  const response = await fetch(`${API_BASE_URL}/api/callbacks`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error ?? `Failed to schedule callback (${response.status})`);
+  }
+}
+
+export async function cancelCallback(callbackId: string): Promise<void> {
+  if (!API_BASE_URL) throw new Error('VITE_API_BASE_URL is not set.');
+  const token = storedToken();
+  const response = await fetch(`${API_BASE_URL}/api/callbacks/${encodeURIComponent(callbackId)}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify({}),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error ?? `Failed to cancel callback (${response.status})`);
+  }
 }
