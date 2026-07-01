@@ -34,7 +34,7 @@ function AgentQuickActions({ username }: { username: string }) {
             key={status}
             selected={status === availability && !activeCall}
             onClick={() => {
-              setAvailability(status);
+              setAvailability(status).catch(() => {});
               setAvailAnchor(null);
             }}
           >

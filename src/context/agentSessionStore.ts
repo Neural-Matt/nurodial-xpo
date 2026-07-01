@@ -57,7 +57,7 @@ export interface AgentSessionContextValue {
   availability: AvailabilityStatus;
   activeCall: ActiveCall | null;
   setCampaign: (campaignId: string) => void;
-  setAvailability: (status: AvailabilityStatus) => Promise<void> | void;
+  setAvailability: (status: AvailabilityStatus) => Promise<void>;
   startCall: (lead: Lead, mode: CallMode, direction?: CallDirection) => Promise<void> | void;
   advanceCallStatus: (status: CallStatus) => void;
   endCall: () => Promise<void> | void;

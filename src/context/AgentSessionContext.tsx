@@ -174,8 +174,11 @@ export function AgentSessionProvider({ children }: { children: ReactNode }) {
       }
 
       if (isApiConfigured()) {
+        // Let a failed write reject — callers need to know VICIdial didn't
+        // actually change state, instead of silently showing a status the
+        // agent isn't really in.
         const viciValue = status === 'Available' ? 'RESUME' : 'PAUSE';
-        await agentAction('external_pause', viciValue).catch(() => {});
+        await agentAction('external_pause', viciValue);
       }
 
       setAvailabilityState(status);

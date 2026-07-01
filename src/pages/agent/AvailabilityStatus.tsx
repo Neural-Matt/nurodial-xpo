@@ -1,8 +1,11 @@
-import { Box, Grid, Card, CardContent, Typography, Stack, Alert } from '@mui/material';
+import { useState } from 'react';
+import { Box, Grid, Card, CardContent, Typography, Stack, Alert, CircularProgress } from '@mui/material';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { useAgentSession } from '../../context/useAgentSession';
-import { AVAILABILITY_TONE, SELECTABLE_AVAILABILITY, derivedAvailability } from '../../context/agentSessionStore';
+import {
+  AVAILABILITY_TONE, SELECTABLE_AVAILABILITY, derivedAvailability, type AvailabilityStatus,
+} from '../../context/agentSessionStore';
 import { colors } from '../../theme/palette';
 
 const TONE_COLOR: Record<string, string> = {
@@ -17,6 +20,21 @@ const TONE_COLOR: Record<string, string> = {
 export function AvailabilityStatus() {
   const { availability, activeCall, setAvailability } = useAgentSession();
   const displayedAvailability = derivedAvailability(activeCall, availability);
+  const [pending, setPending] = useState<AvailabilityStatus | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSelect = async (status: AvailabilityStatus) => {
+    if (activeCall || pending) return;
+    setPending(status);
+    setError(null);
+    try {
+      await setAvailability(status);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : `Failed to switch to ${status}.`);
+    } finally {
+      setPending(null);
+    }
+  };
 
   return (
     <Box>
@@ -33,32 +51,44 @@ export function AvailabilityStatus() {
         </Alert>
       )}
 
+      {error && (
+        <Alert severity="error" sx={{ mb: 3 }} onClose={() => setError(null)}>
+          {error} Your status in VICIdial may not match what's shown here — try again.
+        </Alert>
+      )}
+
       <Grid container spacing={2}>
         {SELECTABLE_AVAILABILITY.map((status) => {
           const isCurrent = !activeCall && status === availability;
+          const isPending = pending === status;
+          const disabled = Boolean(activeCall) || (pending !== null && !isPending);
           return (
             <Grid size={{ xs: 12, sm: 6, md: 3 }} key={status}>
               <Card
                 variant="outlined"
-                onClick={() => !activeCall && setAvailability(status)}
+                onClick={() => { void handleSelect(status); }}
                 sx={{
-                  cursor: activeCall ? 'not-allowed' : 'pointer',
-                  opacity: activeCall ? 0.5 : 1,
+                  cursor: disabled ? 'not-allowed' : 'pointer',
+                  opacity: disabled && !isPending ? 0.5 : 1,
                   borderColor: isCurrent ? TONE_COLOR[AVAILABILITY_TONE[status]] : undefined,
                   borderWidth: isCurrent ? 2 : 1,
                 }}
               >
                 <CardContent sx={{ textAlign: 'center', py: 3 }}>
-                  <Box
-                    sx={{
-                      width: 14,
-                      height: 14,
-                      borderRadius: '50%',
-                      bgcolor: TONE_COLOR[AVAILABILITY_TONE[status]],
-                      mx: 'auto',
-                      mb: 1.5,
-                    }}
-                  />
+                  {isPending ? (
+                    <CircularProgress size={14} sx={{ mb: 1.5 }} />
+                  ) : (
+                    <Box
+                      sx={{
+                        width: 14,
+                        height: 14,
+                        borderRadius: '50%',
+                        bgcolor: TONE_COLOR[AVAILABILITY_TONE[status]],
+                        mx: 'auto',
+                        mb: 1.5,
+                      }}
+                    />
+                  )}
                   <Typography variant="body1" sx={{ fontWeight: isCurrent ? 700 : 500 }}>{status}</Typography>
                 </CardContent>
               </Card>
