@@ -3,13 +3,16 @@ import dayjs from 'dayjs';
 import {
   Box, Card, CardContent, Stack, TextField, Button, Table, TableHead,
   TableRow, TableCell, TableBody, Typography, CircularProgress, Alert, IconButton,
+  Select, MenuItem, FormControl, InputLabel,
 } from '@mui/material';
 import NavigateBeforeOutlined from '@mui/icons-material/NavigateBeforeOutlined';
 import NavigateNextOutlined from '@mui/icons-material/NavigateNextOutlined';
+import FileDownloadOutlined from '@mui/icons-material/FileDownloadOutlined';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { useApiData } from '../../hooks/useApiData';
-import { fetchCallLog } from '../../services/api/client';
+import { fetchCallLog, fetchAllCallLog, fetchDispositions } from '../../services/api/client';
+import { downloadCsv } from '../../utils/csv';
 
 const PAGE_SIZE = 25;
 
@@ -22,22 +25,57 @@ function formatDuration(totalSec: number): string {
 export function CallReport() {
   const [startDate, setStartDate] = useState(dayjs().subtract(30, 'day').format('YYYY-MM-DD'));
   const [endDate, setEndDate] = useState(dayjs().format('YYYY-MM-DD'));
+  const [status, setStatus] = useState('');
   const [offset, setOffset] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
+  const { data: dispositions } = useApiData(fetchDispositions);
   const { data, loading, error, reload } = useApiData(
-    () => fetchCallLog({ startDate, endDate, limit: PAGE_SIZE, offset }),
+    () => fetchCallLog({ startDate, endDate, status: status || undefined, limit: PAGE_SIZE, offset }),
   );
 
   const calls = data?.calls ?? [];
   const total = data?.total ?? 0;
+  const dispositionList = dispositions ?? [];
 
   const handleApply = () => { setOffset(0); reload(); };
   const handlePrev = () => { setOffset((o) => Math.max(0, o - PAGE_SIZE)); reload(); };
   const handleNext = () => { setOffset((o) => o + PAGE_SIZE); reload(); };
 
+  const handleExport = async () => {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const rows = await fetchAllCallLog({ startDate, endDate, status: status || undefined });
+      downloadCsv(
+        `call-report_${startDate}_${endDate}.csv`,
+        ['Date/Time', 'Lead', 'Phone', 'Campaign', 'Duration (sec)', 'Disposition'],
+        rows.map((c) => [c.callDate, `${c.leadFirstName} ${c.leadLastName}`.trim(), c.phoneNumber, c.campaignId, c.durationSec, c.statusName]),
+      );
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Failed to export CSV.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <Box>
-      <PageHeader title="Call Report" subtitle="Your call history from VICIdial." />
+      <PageHeader
+        title="Call Report"
+        subtitle="Your call history from VICIdial."
+        actions={
+          <Button
+            variant="outlined"
+            startIcon={<FileDownloadOutlined />}
+            disabled={exporting}
+            onClick={() => { void handleExport(); }}
+          >
+            {exporting ? 'Exporting…' : 'Download CSV'}
+          </Button>
+        }
+      />
 
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -58,12 +96,22 @@ export function CallReport() {
               onChange={(e) => setEndDate(e.target.value)}
               slotProps={{ inputLabel: { shrink: true } }}
             />
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <InputLabel>Disposition</InputLabel>
+              <Select label="Disposition" value={status} onChange={(e) => setStatus(e.target.value)}>
+                <MenuItem value="">All Dispositions</MenuItem>
+                {dispositionList.map((d) => (
+                  <MenuItem key={d.statusCode} value={d.statusCode}>{d.label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <Button variant="contained" onClick={handleApply}>Apply</Button>
           </Stack>
         </CardContent>
       </Card>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {exportError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setExportError(null)}>{exportError}</Alert>}
 
       <Box sx={{ bgcolor: 'background.paper', borderRadius: 2, border: '1px solid rgba(0,0,0,0.08)', overflowX: 'auto' }}>
         {loading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}

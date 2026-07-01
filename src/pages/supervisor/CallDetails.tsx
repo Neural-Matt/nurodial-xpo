@@ -7,10 +7,14 @@ import {
 } from '@mui/material';
 import NavigateBeforeOutlined from '@mui/icons-material/NavigateBeforeOutlined';
 import NavigateNextOutlined from '@mui/icons-material/NavigateNextOutlined';
+import FileDownloadOutlined from '@mui/icons-material/FileDownloadOutlined';
 import { PageHeader } from '../../components/common/PageHeader';
 import { StatusBadge } from '../../components/common/StatusBadge';
 import { useApiData } from '../../hooks/useApiData';
-import { fetchCallLog, fetchCampaigns, fetchUsers } from '../../services/api/client';
+import {
+  fetchCallLog, fetchAllCallLog, fetchCampaigns, fetchUsers, fetchDispositions,
+} from '../../services/api/client';
+import { downloadCsv } from '../../utils/csv';
 
 const PAGE_SIZE = 25;
 
@@ -25,15 +29,20 @@ export function CallDetails() {
   const [endDate, setEndDate] = useState(dayjs().format('YYYY-MM-DD'));
   const [campaignId, setCampaignId] = useState('');
   const [agentUser, setAgentUser] = useState('');
+  const [status, setStatus] = useState('');
   const [offset, setOffset] = useState(0);
+  const [exporting, setExporting] = useState(false);
+  const [exportError, setExportError] = useState<string | null>(null);
 
   const { data: campaigns } = useApiData(fetchCampaigns);
   const { data: users } = useApiData(fetchUsers);
+  const { data: dispositions } = useApiData(fetchDispositions);
   const { data, loading, error, reload } = useApiData(
     () => fetchCallLog({
       startDate, endDate, limit: PAGE_SIZE, offset,
       campaignId: campaignId || undefined,
       user: agentUser || undefined,
+      status: status || undefined,
     }),
   );
 
@@ -41,14 +50,53 @@ export function CallDetails() {
   const total = data?.total ?? 0;
   const campaignList = campaigns ?? [];
   const userList = users ?? [];
+  const dispositionList = dispositions ?? [];
 
   const handleApply = () => { setOffset(0); reload(); };
   const handlePrev = () => { setOffset((o) => Math.max(0, o - PAGE_SIZE)); reload(); };
   const handleNext = () => { setOffset((o) => o + PAGE_SIZE); reload(); };
 
+  const handleExport = async () => {
+    setExporting(true);
+    setExportError(null);
+    try {
+      const rows = await fetchAllCallLog({
+        startDate, endDate,
+        campaignId: campaignId || undefined,
+        user: agentUser || undefined,
+        status: status || undefined,
+      });
+      downloadCsv(
+        `call-details_${startDate}_${endDate}.csv`,
+        ['Date/Time', 'Agent', 'Lead', 'Phone', 'Campaign', 'Duration (sec)', 'Disposition'],
+        rows.map((c) => [
+          c.callDate, c.userFullName, `${c.leadFirstName} ${c.leadLastName}`.trim(),
+          c.phoneNumber, c.campaignId, c.durationSec, c.statusName,
+        ]),
+      );
+    } catch (err) {
+      setExportError(err instanceof Error ? err.message : 'Failed to export CSV.');
+    } finally {
+      setExporting(false);
+    }
+  };
+
   return (
     <Box>
-      <PageHeader title="Call Details" subtitle="Historical call log across all agents and campaigns." />
+      <PageHeader
+        title="Call Details"
+        subtitle="Historical call log across all agents and campaigns."
+        actions={
+          <Button
+            variant="outlined"
+            startIcon={<FileDownloadOutlined />}
+            disabled={exporting}
+            onClick={() => { void handleExport(); }}
+          >
+            {exporting ? 'Exporting…' : 'Download CSV'}
+          </Button>
+        }
+      />
 
       <Card sx={{ mb: 3 }}>
         <CardContent>
@@ -87,12 +135,22 @@ export function CallDetails() {
                 ))}
               </Select>
             </FormControl>
+            <FormControl size="small" sx={{ minWidth: 180 }}>
+              <InputLabel>Disposition</InputLabel>
+              <Select label="Disposition" value={status} onChange={(e) => setStatus(e.target.value)}>
+                <MenuItem value="">All Dispositions</MenuItem>
+                {dispositionList.map((d) => (
+                  <MenuItem key={d.statusCode} value={d.statusCode}>{d.label}</MenuItem>
+                ))}
+              </Select>
+            </FormControl>
             <Button variant="contained" onClick={handleApply}>Apply</Button>
           </Stack>
         </CardContent>
       </Card>
 
       {error && <Alert severity="error" sx={{ mb: 2 }}>{error}</Alert>}
+      {exportError && <Alert severity="error" sx={{ mb: 2 }} onClose={() => setExportError(null)}>{exportError}</Alert>}
 
       <Box sx={{ bgcolor: 'background.paper', borderRadius: 2, border: '1px solid rgba(0,0,0,0.08)', overflowX: 'auto' }}>
         {loading && <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}><CircularProgress /></Box>}

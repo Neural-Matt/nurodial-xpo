@@ -29,7 +29,7 @@ callLogRouter.get('/', async (req, res, next) => {
     const { sub: username, role } = req.jwtUser!;
     const isAgent = role === 'Agent';
 
-    const { startDate, endDate, campaignId, user, limit, offset } = req.query as Record<string, string | undefined>;
+    const { startDate, endDate, campaignId, user, status, limit, offset } = req.query as Record<string, string | undefined>;
     const start = startDate || '1970-01-01';
     const end = endDate || '2100-01-01';
     const pageLimit = Math.min(Number(limit) || 50, 200);
@@ -48,6 +48,10 @@ callLogRouter.get('/', async (req, res, next) => {
     if (campaignId) {
       conditions.push('vl.campaign_id = ?');
       params.push(campaignId);
+    }
+    if (status) {
+      conditions.push('vl.status = ?');
+      params.push(status);
     }
 
     const whereClause = conditions.join(' AND ');

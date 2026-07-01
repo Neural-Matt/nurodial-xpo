@@ -593,6 +593,7 @@ export interface CallLogParams {
   endDate?: string;
   campaignId?: string;
   user?: string;
+  status?: string;
   limit?: number;
   offset?: number;
 }
@@ -608,8 +609,24 @@ export async function fetchCallLog(params: CallLogParams = {}): Promise<CallLogR
   if (params.endDate) search.set('endDate', params.endDate);
   if (params.campaignId) search.set('campaignId', params.campaignId);
   if (params.user) search.set('user', params.user);
+  if (params.status) search.set('status', params.status);
   if (params.limit) search.set('limit', String(params.limit));
   if (params.offset) search.set('offset', String(params.offset));
   const qs = search.toString();
   return getJson<CallLogResponse>(`/api/call-log${qs ? `?${qs}` : ''}`);
+}
+
+// Loops through every page (the backend caps a single request at 200 rows)
+// to gather every matching row for CSV export, ignoring on-screen pagination.
+export async function fetchAllCallLog(params: Omit<CallLogParams, 'limit' | 'offset'> = {}): Promise<CallLogEntry[]> {
+  const pageSize = 200;
+  let offset = 0;
+  const all: CallLogEntry[] = [];
+  for (;;) {
+    const page = await fetchCallLog({ ...params, limit: pageSize, offset });
+    all.push(...page.calls);
+    if (page.calls.length === 0 || all.length >= page.total) break;
+    offset += pageSize;
+  }
+  return all;
 }
