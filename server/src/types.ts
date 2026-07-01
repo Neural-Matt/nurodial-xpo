@@ -54,6 +54,11 @@ export interface ApiUser {
   status: 'Active' | 'Inactive';
 }
 
+export interface ApiUserGroup {
+  userGroup: string;
+  groupName: string;
+}
+
 export interface ApiAgentStat {
   user: string;
   fullName: string;

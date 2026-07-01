@@ -300,6 +300,65 @@ export async function fetchUsers(): Promise<AppUserApi[]> {
   }));
 }
 
+export interface UserGroupApi {
+  userGroup: string;
+  groupName: string;
+}
+
+export async function fetchUserGroups(): Promise<UserGroupApi[]> {
+  return getJson<UserGroupApi[]>('/api/users/groups');
+}
+
+export interface CreateUserInput {
+  username: string;
+  password: string;
+  fullName: string;
+  role: 'Administrator' | 'Supervisor' | 'Agent';
+  userGroup?: string;
+}
+
+export async function createUser(input: CreateUserInput): Promise<void> {
+  if (!API_BASE_URL) throw new Error('VITE_API_BASE_URL is not set.');
+  const token = storedToken();
+  const response = await fetch(`${API_BASE_URL}/api/users`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error ?? `Failed to create user (${response.status})`);
+  }
+}
+
+export interface UpdateUserInput {
+  fullName?: string;
+  role?: 'Administrator' | 'Supervisor' | 'Agent';
+  userGroup?: string;
+  active?: boolean;
+  password?: string;
+}
+
+export async function updateUser(id: number, input: UpdateUserInput): Promise<void> {
+  if (!API_BASE_URL) throw new Error('VITE_API_BASE_URL is not set.');
+  const token = storedToken();
+  const response = await fetch(`${API_BASE_URL}/api/users/${id}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(input),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error((body as { error?: string }).error ?? `Failed to update user (${response.status})`);
+  }
+}
+
 export interface ScheduledCallback {
   callbackId: string;
   leadId: string;
