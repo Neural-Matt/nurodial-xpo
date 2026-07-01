@@ -19,6 +19,7 @@ import { AnalyticsDashboard } from '../pages/supervisor/AnalyticsDashboard';
 import { Callback as SupervisorCallback } from '../pages/supervisor/Callback';
 import { CallDetails } from '../pages/supervisor/CallDetails';
 import { CallReport } from '../pages/agent/CallReport';
+import { DoNotCall } from '../pages/admin/DoNotCall';
 
 // Every built page must be registered here under the exact path it's wired to
 // in navConfig.ts. Any nav leaf path not listed here renders ComingSoonPage.
@@ -28,6 +29,8 @@ const builtPages: Record<string, ComponentType> = {
   '/admin/global-settings': GlobalSettings,
   '/admin/blended-campaign': Campaigns,
   '/admin/dispositions': Dispositions,
+  '/admin/dnc': DoNotCall,
+  '/admin/blacklisting': DoNotCall,
   '/supervisor/monitor/live': LiveMonitoring,
   '/supervisor/monitor/agents': AgentMonitoring,
   '/supervisor/manage/users': UserManagement,

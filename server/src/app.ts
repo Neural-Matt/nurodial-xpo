@@ -14,6 +14,7 @@ import { agentApiRouter } from './routes/agentApi.js';
 import { callbacksRouter } from './routes/callbacks.js';
 import { callLogRouter } from './routes/callLog.js';
 import { listsRouter } from './routes/lists.js';
+import { dncRouter } from './routes/dnc.js';
 
 export const app = express();
 
@@ -38,6 +39,7 @@ app.use('/api/agent', agentApiRouter);
 app.use('/api/callbacks', callbacksRouter);
 app.use('/api/call-log', callLogRouter);
 app.use('/api/lists', listsRouter);
+app.use('/api/dnc', dncRouter);
 
 app.use((err: unknown, _req: Request, res: Response, _next: NextFunction) => {
   console.error(err);

@@ -630,3 +630,58 @@ export async function fetchAllCallLog(params: Omit<CallLogParams, 'limit' | 'off
   }
   return all;
 }
+
+async function postJson(path: string, body: unknown): Promise<void> {
+  if (!API_BASE_URL) throw new Error('VITE_API_BASE_URL is not set.');
+  const token = storedToken();
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
+    },
+    body: JSON.stringify(body),
+  });
+  if (!response.ok) {
+    const responseBody = await response.json().catch(() => ({}));
+    throw new Error((responseBody as { error?: string }).error ?? `Request to ${path} failed (${response.status})`);
+  }
+}
+
+async function deleteJson(path: string): Promise<void> {
+  if (!API_BASE_URL) throw new Error('VITE_API_BASE_URL is not set.');
+  const token = storedToken();
+  const response = await fetch(`${API_BASE_URL}${path}`, {
+    method: 'DELETE',
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!response.ok) {
+    const responseBody = await response.json().catch(() => ({}));
+    throw new Error((responseBody as { error?: string }).error ?? `Request to ${path} failed (${response.status})`);
+  }
+}
+
+export async function fetchDncList(search?: string): Promise<string[]> {
+  const qs = search ? `?search=${encodeURIComponent(search)}` : '';
+  return getJson<string[]>(`/api/dnc${qs}`);
+}
+
+export async function addToDnc(phoneNumber: string): Promise<void> {
+  return postJson('/api/dnc', { phoneNumber });
+}
+
+export async function removeFromDnc(phoneNumber: string): Promise<void> {
+  return deleteJson(`/api/dnc/${encodeURIComponent(phoneNumber)}`);
+}
+
+export async function fetchCampaignDnc(campaignId: string): Promise<string[]> {
+  return getJson<string[]>(`/api/dnc/campaign/${encodeURIComponent(campaignId)}`);
+}
+
+export async function addToCampaignDnc(campaignId: string, phoneNumber: string): Promise<void> {
+  return postJson('/api/dnc/campaign', { phoneNumber, campaignId });
+}
+
+export async function removeFromCampaignDnc(campaignId: string, phoneNumber: string): Promise<void> {
+  return deleteJson(`/api/dnc/campaign/${encodeURIComponent(campaignId)}/${encodeURIComponent(phoneNumber)}`);
+}
