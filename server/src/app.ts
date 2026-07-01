@@ -20,7 +20,13 @@ import { analyticsRouter } from './routes/analytics.js';
 
 export const app = express();
 
-app.use(cors({ origin: config.corsOrigin }));
+app.use(cors({
+  origin: (origin, callback) => {
+    // No Origin header (e.g. curl, same-origin server-side requests) — allow.
+    if (!origin || config.corsOrigins.includes(origin)) return callback(null, true);
+    callback(new Error(`Origin ${origin} not allowed by CORS`));
+  },
+}));
 app.use(express.json());
 
 app.get('/health', (_req, res) => res.json({ status: 'ok' }));

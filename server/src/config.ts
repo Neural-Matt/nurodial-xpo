@@ -10,7 +10,10 @@ export function requireEnv(name: string): string {
 
 export const config = {
   port: Number(process.env.PORT ?? 4000),
-  corsOrigin: process.env.CORS_ORIGIN ?? 'http://localhost:5173',
+  // Comma-separated list — supports serving the app from more than one
+  // origin at once (e.g. the plain dev server alongside the HTTPS reverse
+  // proxy during a gradual cutover).
+  corsOrigins: (process.env.CORS_ORIGIN ?? 'http://localhost:5173').split(',').map((o) => o.trim()),
   db: {
     host: requireEnv('DB_HOST'),
     port: Number(process.env.DB_PORT ?? 3306),
