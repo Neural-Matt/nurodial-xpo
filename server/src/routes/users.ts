@@ -25,7 +25,10 @@ interface UserRow {
   full_name: string;
   user_level: number;
   user_group: string;
+  user_group_two: string | null;
   active: 'Y' | 'N';
+  email: string | null;
+  phone_login: string | null;
 }
 
 export const usersRouter = Router();
@@ -33,7 +36,7 @@ export const usersRouter = Router();
 usersRouter.get('/', async (_req, res, next) => {
   try {
     const rows = await query<UserRow>(
-      `SELECT user_id, user, full_name, user_level, user_group, active
+      `SELECT user_id, user, full_name, user_level, user_group, user_group_two, active, email, phone_login
        FROM vicidial_users
        WHERE user NOT IN ('VDAD', 'VDCL')
        ORDER BY full_name`,
@@ -45,7 +48,11 @@ usersRouter.get('/', async (_req, res, next) => {
       userLevel: row.user_level,
       role: mapRole(row.user_level),
       userGroup: row.user_group || 'Default',
+      userGroupTwo: row.user_group_two ?? '',
       status: row.active === 'Y' ? 'Active' : 'Inactive',
+      email: row.email ?? '',
+      phoneLogin: row.phone_login ?? '',
+      // phone_pass is a credential -- write-only, never returned to the client.
     }));
     res.json(users);
   } catch (err) {
@@ -70,8 +77,11 @@ usersRouter.get('/groups', async (_req, res, next) => {
 usersRouter.post('/', async (req, res, next) => {
   try {
     const callerRole = req.jwtUser!.role;
-    const { username, password, fullName, role, userGroup } = req.body as {
+    const {
+      username, password, fullName, role, userGroup, userGroupTwo, email, phoneLogin, phonePass,
+    } = req.body as {
       username?: string; password?: string; fullName?: string; role?: Role; userGroup?: string;
+      userGroupTwo?: string; email?: string; phoneLogin?: string; phonePass?: string;
     };
 
     if (!username || !password || !fullName || !role) {
@@ -99,9 +109,13 @@ usersRouter.post('/', async (req, res, next) => {
     }
 
     await writeQuery(
-      `INSERT INTO vicidial_users (user, pass, full_name, user_level, user_group, active)
-       VALUES (?, ?, ?, ?, ?, 'Y')`,
-      [username, password, fullName, ROLE_TO_LEVEL[role], userGroup || 'ADMIN'],
+      `INSERT INTO vicidial_users
+         (user, pass, full_name, user_level, user_group, active, user_group_two, email, phone_login, phone_pass)
+       VALUES (?, ?, ?, ?, ?, 'Y', ?, ?, ?, ?)`,
+      [
+        username, password, fullName, ROLE_TO_LEVEL[role], userGroup || 'ADMIN',
+        userGroupTwo || '', email || '', phoneLogin || '', phonePass || '',
+      ],
     );
 
     res.status(201).json({ ok: true });
@@ -122,8 +136,11 @@ usersRouter.patch('/:id', async (req, res, next) => {
 
     const callerRole = req.jwtUser!.role;
     const callerUsername = req.jwtUser!.sub;
-    const { fullName, role, userGroup, active, password } = req.body as {
+    const {
+      fullName, role, userGroup, active, password, userGroupTwo, email, phoneLogin, phonePass,
+    } = req.body as {
       fullName?: string; role?: Role; userGroup?: string; active?: boolean; password?: string;
+      userGroupTwo?: string; email?: string; phoneLogin?: string; phonePass?: string;
     };
 
     const targetRows = await query<{ user: string; user_level: number }>(
@@ -157,6 +174,10 @@ usersRouter.patch('/:id', async (req, res, next) => {
     if (userGroup) { sets.push('user_group = ?'); params.push(userGroup); }
     if (active !== undefined) { sets.push('active = ?'); params.push(active ? 'Y' : 'N'); }
     if (password) { sets.push('pass = ?'); params.push(password); }
+    if (userGroupTwo !== undefined) { sets.push('user_group_two = ?'); params.push(userGroupTwo); }
+    if (email !== undefined) { sets.push('email = ?'); params.push(email); }
+    if (phoneLogin !== undefined) { sets.push('phone_login = ?'); params.push(phoneLogin); }
+    if (phonePass !== undefined) { sets.push('phone_pass = ?'); params.push(phonePass); }
 
     if (!sets.length) {
       return res.status(400).json({ error: 'No fields to update.' });

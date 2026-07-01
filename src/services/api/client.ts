@@ -207,7 +207,10 @@ interface ApiUser {
   userLevel: number;
   role: 'Administrator' | 'Supervisor' | 'Agent';
   userGroup: string;
+  userGroupTwo: string;
   status: 'Active' | 'Inactive';
+  email: string;
+  phoneLogin: string;
 }
 
 export interface AppUserApi {
@@ -216,8 +219,11 @@ export interface AppUserApi {
   username: string;
   role: 'Administrator' | 'Supervisor' | 'Agent';
   team: string;
+  teamTwo: string;
   status: 'Active' | 'Inactive' | 'Locked';
   lastLogin: string;
+  email: string;
+  phoneLogin: string;
 }
 
 export async function fetchLiveAgents(): Promise<LiveAgent[]> {
@@ -349,8 +355,11 @@ export async function fetchUsers(): Promise<AppUserApi[]> {
     username: row.username,
     role: row.role,
     team: row.userGroup,
+    teamTwo: row.userGroupTwo,
     status: row.status,
     lastLogin: '',
+    email: row.email,
+    phoneLogin: row.phoneLogin,
   }));
 }
 
@@ -369,6 +378,10 @@ export interface CreateUserInput {
   fullName: string;
   role: 'Administrator' | 'Supervisor' | 'Agent';
   userGroup?: string;
+  userGroupTwo?: string;
+  email?: string;
+  phoneLogin?: string;
+  phonePass?: string;
 }
 
 export async function createUser(input: CreateUserInput): Promise<void> {
@@ -394,6 +407,10 @@ export interface UpdateUserInput {
   userGroup?: string;
   active?: boolean;
   password?: string;
+  userGroupTwo?: string;
+  email?: string;
+  phoneLogin?: string;
+  phonePass?: string;
 }
 
 export async function updateUser(id: number, input: UpdateUserInput): Promise<void> {

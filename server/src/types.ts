@@ -51,7 +51,10 @@ export interface ApiUser {
   userLevel: number;
   role: 'Administrator' | 'Supervisor' | 'Agent';
   userGroup: string;
+  userGroupTwo: string;
   status: 'Active' | 'Inactive';
+  email: string;
+  phoneLogin: string;
 }
 
 export interface ApiUserGroup {
