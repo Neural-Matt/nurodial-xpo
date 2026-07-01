@@ -24,7 +24,7 @@ export const ROLE_LABELS: Record<Role, string> = {
 
 export interface AuthContextValue {
   user: AuthUser | null;
-  login: (username: string, password: string) => Promise<void>;
+  login: (username: string, password: string) => Promise<AuthUser>;
   logout: () => void;
 }
 

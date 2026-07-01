@@ -1,16 +1,9 @@
 import { useState, type FormEvent } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Box, Paper, TextField, Button, Typography, Alert, Stack, Divider } from '@mui/material';
+import { Box, Paper, TextField, Button, Typography, Alert, Stack } from '@mui/material';
 import { useAuth } from '../context/useAuth';
-import { findAccountByUsername } from '../services/mock/accounts';
 import { landingPathForRole } from '../config/landingPaths';
 import { colors } from '../theme/palette';
-
-const DEMO_ACCOUNTS = [
-  { role: 'Administrator', user: 'admin', pass: 'admin123' },
-  { role: 'Supervisor', user: 'supervisor', pass: 'supervisor123' },
-  { role: 'Agent', user: 'agent', pass: 'agent123' },
-];
 
 export function Login() {
   const { login } = useAuth();
@@ -25,9 +18,8 @@ export function Login() {
     setError(null);
     setSubmitting(true);
     try {
-      await login(username, password);
-      const role = findAccountByUsername(username)?.role ?? 'Agent';
-      navigate(landingPathForRole(role), { replace: true });
+      const loggedInUser = await login(username, password);
+      navigate(landingPathForRole(loggedInUser.role), { replace: true });
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unable to sign in.');
     } finally {
@@ -94,19 +86,6 @@ export function Login() {
             {submitting ? 'Signing in…' : 'Sign In'}
           </Button>
         </Box>
-
-        <Divider sx={{ my: 3 }} />
-
-        <Typography variant="caption" color="text.secondary" sx={{ display: 'block', mb: 1, fontWeight: 600 }}>
-          Demo credentials
-        </Typography>
-        <Stack spacing={0.5}>
-          {DEMO_ACCOUNTS.map((account) => (
-            <Typography key={account.user} variant="caption" color="text.secondary">
-              {account.role}: <code>{account.user}</code> / <code>{account.pass}</code>
-            </Typography>
-          ))}
-        </Stack>
       </Paper>
     </Box>
   );

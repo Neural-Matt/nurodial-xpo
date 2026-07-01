@@ -12,19 +12,20 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       localStorage.setItem(TOKEN_KEY, token);
       writeSession(apiUser);
       setUser(apiUser);
-    } else {
-      // Mock fallback — only active when VITE_API_BASE_URL is not set
-      const account = validateCredentials(username, password);
-      if (!account) throw new Error('Invalid username or password.');
-      const nextUser: AuthUser = {
-        id: account.user,
-        username: account.user,
-        displayName: account.full_name || ROLE_DISPLAY_NAMES[account.role],
-        role: account.role,
-      };
-      writeSession(nextUser);
-      setUser(nextUser);
+      return apiUser;
     }
+    // Mock fallback — only active when VITE_API_BASE_URL is not set
+    const account = validateCredentials(username, password);
+    if (!account) throw new Error('Invalid username or password.');
+    const nextUser: AuthUser = {
+      id: account.user,
+      username: account.user,
+      displayName: account.full_name || ROLE_DISPLAY_NAMES[account.role],
+      role: account.role,
+    };
+    writeSession(nextUser);
+    setUser(nextUser);
+    return nextUser;
   }, []);
 
   const logout = useCallback(() => {
