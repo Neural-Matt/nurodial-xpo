@@ -50,7 +50,7 @@ export function CampaignSelection() {
 
       {needsSession && (
         <Alert severity="info" sx={{ mb: 2 }}>
-          You're not logged into VICIdial yet. Choose a phone extension, then start a session on a Manual-dial campaign.
+          You're not logged into VICIdial yet. Choose a phone extension, then start a session on a campaign.
         </Alert>
       )}
       {startError && <Alert severity="error" sx={{ mb: 2 }}>{startError}</Alert>}
@@ -106,7 +106,6 @@ export function CampaignSelection() {
         <Grid container spacing={2}>
           {filtered.map((campaign) => {
             const isCurrent = campaign.campaignId === currentCampaignId;
-            const isManual = campaign.dialMethod === 'MANUAL';
             const isStarting = startingCampaignId === campaign.campaignId;
 
             let buttonLabel = isCurrent ? 'Selected' : 'Select Campaign';
@@ -116,8 +115,7 @@ export function CampaignSelection() {
             if (needsSession) {
               buttonLabel = isStarting ? 'Starting…' : 'Start Session';
               onClick = () => { void handleStartSession(campaign.campaignId); };
-              if (!isManual) disabledReason = 'Agent login currently only supports Manual dial campaigns.';
-              else if (!extension) disabledReason = 'Choose a phone extension first.';
+              if (!extension) disabledReason = 'Choose a phone extension first.';
             } else if (activeCall) {
               disabledReason = 'End the current call to switch campaigns';
             }

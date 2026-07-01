@@ -31,6 +31,7 @@ interface PhoneRow {
   server_ip: string;
   phone_ring_timeout: number;
   on_hook_agent: 'Y' | 'N';
+  ext_context: string;
 }
 
 export const agentApiRouter = Router();
@@ -120,11 +121,18 @@ agentApiRouter.get('/me', async (req, res, next) => {
 });
 
 // POST /api/agent/login-session — create the agent's vicidial_live_agents row,
-// replicating VICIdial's own MANUAL-dial login path (agc/vicidial.php). Scoped
-// to MANUAL-dial campaigns only: those skip VICIdial's conference-room
-// reservation and login-time Originate entirely, so conf_exten is left ''
-// and no vicidial_manager job is queued — matching what VICIdial itself does
-// for this campaign type.
+// replicating VICIdial's own login path (agc/vicidial.php) for both MANUAL
+// and predictive-dial campaigns:
+// - MANUAL skips VICIdial's conference-room reservation and login-time
+//   Originate entirely (conf_exten stays '', outbound_autodial 'N') — matches
+//   what VICIdial itself does for this campaign type.
+// - Non-MANUAL (RATIO/ADAPT_*/etc.) reserves a room from `vicidial_conferences`
+//   (a fixed pool of 249 pre-provisioned MeetMe rooms on this install), rings
+//   the agent's own phone into it via AMI (Context/Exten matching the real
+//   `Meetme(${EXTEN},F)` dialplan confirmed in extensions.conf), and sets
+//   `outbound_autodial='Y'` -- the exact flag VICIdial's own predictive dialer
+//   daemon (AST_VDauto_dial.pl, confirmed running) reads to treat this agent
+//   as eligible to receive auto-dialed calls into that room.
 agentApiRouter.post('/login-session', async (req, res, next) => {
   try {
     const username = req.jwtUser!.sub;
@@ -141,14 +149,10 @@ agentApiRouter.post('/login-session', async (req, res, next) => {
     if (!campaignRows.length) {
       return res.status(400).json({ error: `Campaign "${campaignId}" is not active.` });
     }
-    if (campaignRows[0].dial_method !== 'MANUAL') {
-      return res.status(400).json({
-        error: 'Agent login is only supported for MANUAL dial campaigns right now.',
-      });
-    }
+    const isManual = campaignRows[0].dial_method === 'MANUAL';
 
     const phoneRows = await query<PhoneRow>(
-      `SELECT extension, protocol, server_ip, phone_ring_timeout, on_hook_agent
+      `SELECT extension, protocol, server_ip, phone_ring_timeout, on_hook_agent, ext_context
        FROM phones WHERE extension = ? AND active = 'Y' LIMIT 1`,
       [extension],
     );
@@ -192,6 +196,40 @@ agentApiRouter.post('/login-session', async (req, res, next) => {
     const sipUser = `${phone.protocol}/${phone.extension}`;
     const randomId = Math.floor(Math.random() * 90000000) + 10000000;
 
+    let confExten = '';
+    let outboundAutodial: 'Y' | 'N' = 'N';
+
+    if (!isManual) {
+      // Reserve a free room the same way agc/vicidial.php does: atomically
+      // claim one row where extension is empty, then look up its conf_exten.
+      const reserveResult = await writeQuery(
+        `UPDATE vicidial_conferences SET extension = ?, leave_3way = '0'
+         WHERE server_ip = ? AND (extension = '' OR extension IS NULL) LIMIT 1`,
+        [sipUser, phone.server_ip],
+      );
+      if (reserveResult.affectedRows === 0) {
+        return res.status(503).json({ error: 'No available conference room on this server right now.' });
+      }
+      const confRows = await query<{ conf_exten: string }>(
+        `SELECT conf_exten FROM vicidial_conferences WHERE server_ip = ? AND extension = ? LIMIT 1`,
+        [phone.server_ip, sipUser],
+      );
+      confExten = confRows[0]?.conf_exten ?? '';
+      outboundAutodial = 'Y';
+
+      // Mirror VICIdial's own stale-session cleanup for this user before
+      // reusing the room: leads left mid-call go back to the hopper as ERI,
+      // and any leftover hopper rows for this user are cleared.
+      await writeQuery(
+        `UPDATE vicidial_list SET status = 'ERI', user = '' WHERE status IN ('QUEUE','INCALL') AND user = ?`,
+        [username],
+      );
+      await writeQuery(
+        `DELETE FROM vicidial_hopper WHERE status IN ('QUEUE','INCALL','DONE') AND user = ?`,
+        [username],
+      );
+    }
+
     // Other VICIdial scripts assume exactly one vicidial_live_agents row per
     // user; clear any stale row (e.g. from a crashed session) before inserting.
     await writeQuery('DELETE FROM vicidial_live_agents WHERE user = ?', [username]);
@@ -202,12 +240,31 @@ agentApiRouter.post('/login-session', async (req, res, next) => {
           random_id, last_call_time, last_update_time, last_call_finish, user_level, campaign_weight, calls_today,
           last_state_change, outbound_autodial, manager_ingroup_set, on_hook_ring_time, on_hook_agent, campaign_grade,
           last_inbound_call_time_filtered, last_inbound_call_finish_filtered)
-       VALUES (?, ?, '', ?, 'PAUSED', '', ?, '', '', '', ?, NOW(), NOW(), NOW(), ?, ?, ?, NOW(), 'N', 'N', ?, ?, ?, NOW(), NOW())`,
+       VALUES (?, ?, ?, ?, 'PAUSED', '', ?, '', '', '', ?, NOW(), NOW(), NOW(), ?, ?, ?, NOW(), ?, 'N', ?, ?, ?, NOW(), NOW())`,
       [
-        username, phone.server_ip, sipUser, campaignId, randomId,
-        userLevel, campaignWeight, callsToday, phone.phone_ring_timeout, phone.on_hook_agent, campaignGrade,
+        username, phone.server_ip, confExten, sipUser, campaignId, randomId,
+        userLevel, campaignWeight, callsToday, outboundAutodial, phone.phone_ring_timeout, phone.on_hook_agent, campaignGrade,
       ],
     );
+
+    if (!isManual && confExten) {
+      // Fire-and-forget, matching VICIdial's own login: it queues this same
+      // Originate via vicidial_manager without waiting for or storing the
+      // resulting channel. Logout looks up the live channel fresh via
+      // `live_sip_channels` instead of tracking it here (see logout below).
+      await ami.ensureConnected();
+      ami.sendAction({
+        Action: 'Originate',
+        Channel: sipUser,
+        Context: phone.ext_context,
+        Exten: confExten,
+        Priority: '1',
+        CallerID: `NuroDial <${username}>`,
+        Async: 'true',
+      }).catch((err) => {
+        console.error(`Login conference-join Originate failed for ${username}:`, err);
+      });
+    }
 
     res.status(201).json({ ok: true });
   } catch (err) {
@@ -221,6 +278,8 @@ interface LiveAgentRow {
   lead_id: number;
   campaign_id: string;
   status: string;
+  conf_exten: string;
+  server_ip: string;
 }
 
 // POST /api/agent/action — real-time call control via AMI + direct VICIdial
@@ -238,7 +297,7 @@ agentApiRouter.post('/action', async (req, res, next) => {
     }
 
     const agentRows = await query<LiveAgentRow>(
-      'SELECT extension, channel, lead_id, campaign_id, status FROM vicidial_live_agents WHERE user = ?',
+      'SELECT extension, channel, lead_id, campaign_id, status, conf_exten, server_ip FROM vicidial_live_agents WHERE user = ?',
       [username],
     );
     if (!agentRows.length) {
@@ -377,6 +436,28 @@ agentApiRouter.post('/action', async (req, res, next) => {
           await ami.ensureConnected();
           await ami.sendAction({ Action: 'Hangup', Channel: agent.channel }).catch(() => {});
         }
+
+        if (agent.conf_exten) {
+          // Non-MANUAL session: release the reserved conference room, then
+          // hang up the agent's own phone leg. Matches VICIdial's own
+          // userLOGout handler (vdc_db_query.php) -- it doesn't track the
+          // login-time Originate's channel either, it looks up whatever's
+          // currently live for this extension via `live_sip_channels` (kept
+          // current by AST_update_AMI2.pl, confirmed running) and hangs that up.
+          await writeQuery(
+            `UPDATE vicidial_conferences SET extension = '' WHERE server_ip = ? AND conf_exten = ?`,
+            [agent.server_ip, agent.conf_exten],
+          );
+          const liveChannelRows = await query<{ channel: string }>(
+            `SELECT channel FROM live_sip_channels WHERE server_ip = ? AND channel LIKE ? ORDER BY channel DESC LIMIT 1`,
+            [agent.server_ip, `${agent.extension}%`],
+          );
+          if (liveChannelRows.length) {
+            await ami.ensureConnected();
+            await ami.sendAction({ Action: 'Hangup', Channel: liveChannelRows[0].channel }).catch(() => {});
+          }
+        }
+
         await writeQuery('DELETE FROM vicidial_live_agents WHERE user = ?', [username]);
         break;
       }

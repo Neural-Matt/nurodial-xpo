@@ -1,4 +1,4 @@
-import mysql from 'mysql2/promise';
+import mysql, { type ResultSetHeader } from 'mysql2/promise';
 
 // Separate write pool — nurodial_agent has narrowly scoped write grants
 // (external_* columns on vicidial_live_agents; INSERT/UPDATE on
@@ -13,6 +13,7 @@ export const writePool = mysql.createPool({
   connectionLimit: 10,
 });
 
-export async function writeQuery(sql: string, params: unknown[] = []): Promise<void> {
-  await writePool.query(sql, params);
+export async function writeQuery(sql: string, params: unknown[] = []): Promise<ResultSetHeader> {
+  const [result] = await writePool.query<ResultSetHeader>(sql, params);
+  return result;
 }
