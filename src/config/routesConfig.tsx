@@ -17,6 +17,8 @@ import { UserManagement } from '../pages/supervisor/UserManagement';
 import { LeadLists } from '../pages/supervisor/LeadLists';
 import { AnalyticsDashboard } from '../pages/supervisor/AnalyticsDashboard';
 import { Callback as SupervisorCallback } from '../pages/supervisor/Callback';
+import { CallDetails } from '../pages/supervisor/CallDetails';
+import { CallReport } from '../pages/agent/CallReport';
 
 // Every built page must be registered here under the exact path it's wired to
 // in navConfig.ts. Any nav leaf path not listed here renders ComingSoonPage.
@@ -31,11 +33,13 @@ const builtPages: Record<string, ComponentType> = {
   '/supervisor/manage/users': UserManagement,
   '/supervisor/manage/leads': LeadLists,
   '/supervisor/manage/callback': SupervisorCallback,
+  '/supervisor/manage/call-details': CallDetails,
   '/supervisor/reports/list': AnalyticsDashboard,
   '/agent/home/dialer': Dialer,
   '/agent/home/campaign-selection': CampaignSelection,
   '/agent/home/availability': AvailabilityStatus,
   '/agent/home/callback': AgentCallback,
+  '/agent/call-details/report': CallReport,
 };
 
 export function buildRoutes(): ReactElement[] {

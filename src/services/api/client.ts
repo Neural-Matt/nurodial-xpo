@@ -473,3 +473,45 @@ export async function cancelCallback(callbackId: string): Promise<void> {
     throw new Error((body as { error?: string }).error ?? `Failed to cancel callback (${response.status})`);
   }
 }
+
+export interface CallLogEntry {
+  uniqueId: string;
+  leadId: string;
+  campaignId: string;
+  callDate: string;
+  durationSec: number;
+  statusCode: string;
+  statusName: string;
+  phoneNumber: string;
+  user: string;
+  userFullName: string;
+  leadFirstName: string;
+  leadLastName: string;
+  termReason: string;
+}
+
+export interface CallLogParams {
+  startDate?: string;
+  endDate?: string;
+  campaignId?: string;
+  user?: string;
+  limit?: number;
+  offset?: number;
+}
+
+export interface CallLogResponse {
+  total: number;
+  calls: CallLogEntry[];
+}
+
+export async function fetchCallLog(params: CallLogParams = {}): Promise<CallLogResponse> {
+  const search = new URLSearchParams();
+  if (params.startDate) search.set('startDate', params.startDate);
+  if (params.endDate) search.set('endDate', params.endDate);
+  if (params.campaignId) search.set('campaignId', params.campaignId);
+  if (params.user) search.set('user', params.user);
+  if (params.limit) search.set('limit', String(params.limit));
+  if (params.offset) search.set('offset', String(params.offset));
+  const qs = search.toString();
+  return getJson<CallLogResponse>(`/api/call-log${qs ? `?${qs}` : ''}`);
+}
